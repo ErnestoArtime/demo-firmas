@@ -1,0 +1,49 @@
+<main class="container">
+  <h1>Demo Firmas - Frontend Angular</h1>
+  <p class="subtitle">Backend: {{ apiBaseUrl }}</p>
+
+  <section class="card">
+    <h2>1) Subir plantilla</h2>
+    <input type="file" accept=".docx,.pdf" (change)="onFileSelected($event)" />
+    <button type="button" (click)="uploadTemplate()" [disabled]="loading">Subir plantilla</button>
+  </section>
+
+  <section class="card">
+    <h2>2) Consultar requisitos</h2>
+    <label for="templateId">Template ID</label>
+    <input id="templateId" type="text" [(ngModel)]="templateId" placeholder="UUID de plantilla" />
+    <button type="button" (click)="getRequirements()" [disabled]="loading">Consultar requisitos</button>
+
+    <div *ngIf="requirements" class="result">
+      <h3>requiredFields</h3>
+      <ul>
+        <li *ngFor="let field of requirements.requiredFields">{{ field }}</li>
+      </ul>
+
+      <h3>requiredSignatures</h3>
+      <ul>
+        <li *ngFor="let signature of requirements.requiredSignatures">{{ signature }}</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3) Generar documento</h2>
+
+    <label for="fields">Fields (JSON)</label>
+    <textarea id="fields" rows="8" [(ngModel)]="fieldsJson"></textarea>
+
+    <label for="signatures">Signatures (JSON base64)</label>
+    <textarea id="signatures" rows="8" [(ngModel)]="signaturesJson"></textarea>
+
+    <button type="button" (click)="generateDocument()" [disabled]="loading">Generar documento</button>
+
+    <div *ngIf="generated" class="result">
+      <p><strong>Document ID:</strong> {{ generated.documentId }}</p>
+      <a [href]="apiBaseUrl + generated.downloadUrl" target="_blank" rel="noopener">Descargar documento generado</a>
+    </div>
+  </section>
+
+  <p *ngIf="message" class="ok">{{ message }}</p>
+  <p *ngIf="error" class="error">{{ error }}</p>
+</main>

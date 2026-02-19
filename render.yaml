@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: demo-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    disk:
+      name: storage
+      mountPath: /app/storage
+      sizeGB: 1
