@@ -144,10 +144,21 @@ export class App implements OnInit {
         this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
       );
       this.templateId = response.templateId;
-      await this.listTemplatesInternal();
-      await this.getRequirementsInternal();
+      this.selectedTemplateId = response.templateId;
+      this.upsertTemplateInList(response);
       this.generated = null;
       this.pushToast(`Plantilla subida: ${response.templateId}`, 'success');
+
+      const [listResult, requirementsResult] = await Promise.allSettled([
+        this.listTemplatesInternal(),
+        this.getRequirementsInternal()
+      ]);
+      if (listResult.status === 'rejected') {
+        this.pushToast('Se subio la plantilla, pero no se pudo refrescar el listado.', 'info');
+      }
+      if (requirementsResult.status === 'rejected') {
+        this.pushToast('Se subio la plantilla, pero no se pudieron cargar requisitos.', 'info');
+      }
     });
   }
 
@@ -450,6 +461,12 @@ export class App implements OnInit {
     this.templates = await this.httpOnce(
       this.http.get<TemplateUploadResponse[]>(`${this.apiBaseUrl}/api/templates`)
     );
+  }
+
+  private upsertTemplateInList(template: TemplateUploadResponse): void {
+    const withoutCurrent = this.templates.filter((item) => item.templateId !== template.templateId);
+    this.templates = [template, ...withoutCurrent];
+    this.refreshUi();
   }
 
   private async getRequirementsInternal(): Promise<void> {

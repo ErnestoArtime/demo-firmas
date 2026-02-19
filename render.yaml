@@ -4,6 +4,15 @@ services:
     env: docker
     plan: free
     autoDeploy: true
+    envVars:
+      - key: APP_STORAGE_TEMPLATES_DIR
+        value: /app/storage/templates
+      - key: APP_STORAGE_OUTPUT_DIR
+        value: /app/storage/output
+      - key: APP_SAMPLES_DIR
+        value: /app/storage/samples
+      - key: APP_CONVERT_SOFFICE_COMMAND
+        value: soffice
     disk:
       name: storage
       mountPath: /app/storage
