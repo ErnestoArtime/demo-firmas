@@ -112,7 +112,9 @@ public class TemplateController {
         return new TemplateMappingResponse(
                 templateId,
                 mapping.fieldMappings(),
-                mapping.signatureMappings());
+                mapping.signatureMappings(),
+                mapping.requiredFieldKeys(),
+                mapping.requiredSignatureKeys());
     }
 
     @PostMapping("/{templateId}/mapping")
@@ -123,11 +125,15 @@ public class TemplateController {
         TemplateMappingMetadata saved = templateMappingService.save(
                 templateId,
                 request.fieldMappingsOrEmpty(),
-                request.signatureMappingsOrEmpty());
+                request.signatureMappingsOrEmpty(),
+                request.requiredFieldKeysOrEmpty(),
+                request.requiredSignatureKeysOrEmpty());
         return new TemplateMappingResponse(
                 templateId,
                 saved.fieldMappings(),
-                saved.signatureMappings());
+                saved.signatureMappings(),
+                saved.requiredFieldKeys(),
+                saved.requiredSignatureKeys());
     }
 
     private TemplateUploadResponse mapUploadResponse(TemplateMetadata metadata) {

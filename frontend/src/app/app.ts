@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom, timeout } from 'rxjs';
 
 import { environment } from '../environments/environment';
 
@@ -37,6 +37,8 @@ interface TemplateMappingResponse {
   templateId: string;
   fieldMappings: Record<string, string>;
   signatureMappings: Record<string, string>;
+  requiredFieldKeys: string[];
+  requiredSignatureKeys: string[];
 }
 
 interface SavedSignature {
@@ -74,6 +76,8 @@ export class App implements OnInit {
   selectedSignatureFiles: Record<string, string> = {};
   mappingFieldSelections: Record<string, string> = {};
   mappingSignatureSelections: Record<string, string> = {};
+  requiredFieldFlags: Record<string, boolean> = {};
+  requiredSignatureFlags: Record<string, boolean> = {};
   savedSignatures: SavedSignature[] = [];
   newSignatureName = '';
   newSignatureFile: File | null = null;
@@ -106,7 +110,10 @@ export class App implements OnInit {
   toasts: UiToast[] = [];
   private readonly signatureLibraryStorageKey = 'demo.signature.library.v1';
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.loadSignatureLibrary();
@@ -133,7 +140,7 @@ export class App implements OnInit {
     formData.append('file', this.selectedFile);
 
     await this.runWithFeedback('uploadTemplate', async () => {
-      const response = await firstValueFrom(
+      const response = await this.httpOnce(
         this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
       );
       this.templateId = response.templateId;
@@ -178,14 +185,19 @@ export class App implements OnInit {
       this.pushToast('Indica un templateId.', 'error');
       return;
     }
+    if (!this.validateSignaturesVsStudentsCount(true)) {
+      return;
+    }
 
     await this.runWithFeedback('generateDocument', async () => {
-      this.generated = await firstValueFrom(
+      this.generated = await this.httpOnce(
         this.http.post<GenerateDocumentResponse>(`${this.apiBaseUrl}/api/documents/generate`, {
           templateId: this.currentTemplateId(),
           fields: this.buildFieldsPayload(),
           signatures: this.buildSignaturesPayload(),
-          dataJson: this.dataJson
+          dataJson: this.dataJson,
+          requiredFieldKeys: this.selectedRequiredFieldKeys(),
+          requiredSignatureKeys: this.selectedRequiredSignatureKeys()
         })
       );
       this.pushToast(`Documento generado: ${this.generated.documentId}`, 'success');
@@ -198,12 +210,14 @@ export class App implements OnInit {
       return;
     }
     await this.runWithFeedback('saveTemplateMapping', async () => {
-      await firstValueFrom(
+      await this.httpOnce(
         this.http.post<TemplateMappingResponse>(
           `${this.apiBaseUrl}/api/templates/${this.currentTemplateId()}/mapping`,
           {
             fieldMappings: this.mappingFieldSelections,
-            signatureMappings: this.mappingSignatureSelections
+            signatureMappings: this.mappingSignatureSelections,
+            requiredFieldKeys: this.selectedRequiredFieldKeys(),
+            requiredSignatureKeys: this.selectedRequiredSignatureKeys()
           }
         )
       );
@@ -246,6 +260,15 @@ export class App implements OnInit {
     this.selectedSignatureFiles[targetField] = `[Libreria] ${signature.name}`;
   }
 
+  onSavedSignatureSelectionChange(targetField: string, signatureId: string): void {
+    if (!signatureId) {
+      this.signatureValues[targetField] = '';
+      this.selectedSignatureFiles[targetField] = '';
+      return;
+    }
+    this.assignSavedSignature(targetField, signatureId);
+  }
+
   removeSavedSignature(signatureId: string): void {
     this.savedSignatures = this.savedSignatures.filter((item) => item.id !== signatureId);
     this.persistSignatureLibrary();
@@ -282,7 +305,11 @@ export class App implements OnInit {
   }
 
   canGenerateDocument(): boolean {
-    return Boolean(this.requirements && this.currentTemplateId()) && !this.isBusy();
+    return (
+      Boolean(this.requirements && this.currentTemplateId()) &&
+      !this.isBusy() &&
+      this.validateSignaturesVsStudentsCount()
+    );
   }
 
   canSaveMapping(): boolean {
@@ -291,10 +318,6 @@ export class App implements OnInit {
 
   canSaveSignatureToLibrary(): boolean {
     return Boolean(this.newSignatureName.trim() && this.newSignatureFile) && !this.isBusy();
-  }
-
-  canAssignSavedSignature(fieldName: string): boolean {
-    return Boolean(this.selectedLibrarySignatureByField[fieldName]) && !this.isBusy();
   }
 
   fieldCatalogOptions(): CatalogFieldResponse[] {
@@ -313,6 +336,7 @@ export class App implements OnInit {
     this.fieldValues = {};
     for (const key of this.requirements.requiredFields) {
       this.fieldValues[key] = '';
+      this.requiredFieldFlags[key] = true;
     }
 
     this.signatureValues = {};
@@ -322,6 +346,7 @@ export class App implements OnInit {
       this.signatureValues[key] = '';
       this.selectedSignatureFiles[key] = '';
       this.selectedLibrarySignatureByField[key] = '';
+      this.requiredSignatureFlags[key] = false;
     }
     this.mappingFieldSelections = {};
     this.mappingSignatureSelections = {};
@@ -355,7 +380,7 @@ export class App implements OnInit {
 
   private async loadCatalogFields(showToast = false): Promise<void> {
     await this.runWithFeedback('loadCatalogFields', async () => {
-      this.catalogFields = await firstValueFrom(
+      this.catalogFields = await this.httpOnce(
         this.http.get<CatalogFieldResponse[]>(`${this.apiBaseUrl}/api/templates/catalog-fields`)
       );
       if (showToast) {
@@ -368,7 +393,7 @@ export class App implements OnInit {
     if (!this.currentTemplateId() || !this.requirements) {
       return;
     }
-    const mapping = await firstValueFrom(
+    const mapping = await this.httpOnce(
       this.http.get<TemplateMappingResponse>(
         `${this.apiBaseUrl}/api/templates/${this.currentTemplateId()}/mapping`
       )
@@ -381,6 +406,15 @@ export class App implements OnInit {
     this.mappingSignatureSelections = {};
     for (const key of this.requirements.requiredSignatures) {
       this.mappingSignatureSelections[key] = mapping.signatureMappings[key] ?? '';
+    }
+
+    const requiredFieldSet = new Set(mapping.requiredFieldKeys ?? []);
+    const requiredSignatureSet = new Set(mapping.requiredSignatureKeys ?? []);
+    for (const key of this.requirements.requiredFields) {
+      this.requiredFieldFlags[key] = requiredFieldSet.has(key);
+    }
+    for (const key of this.requirements.requiredSignatures) {
+      this.requiredSignatureFlags[key] = requiredSignatureSet.has(key);
     }
   }
 
@@ -413,13 +447,13 @@ export class App implements OnInit {
   }
 
   private async listTemplatesInternal(): Promise<void> {
-    this.templates = await firstValueFrom(
+    this.templates = await this.httpOnce(
       this.http.get<TemplateUploadResponse[]>(`${this.apiBaseUrl}/api/templates`)
     );
   }
 
   private async getRequirementsInternal(): Promise<void> {
-    this.requirements = await firstValueFrom(
+    this.requirements = await this.httpOnce(
       this.http.get<TemplateRequirementsResponse>(
         `${this.apiBaseUrl}/api/templates/${this.currentTemplateId()}/requirements`
       )
@@ -437,30 +471,87 @@ export class App implements OnInit {
     return (this.selectedTemplateId || this.templateId).trim();
   }
 
+  private selectedRequiredFieldKeys(): string[] {
+    return Object.entries(this.requiredFieldFlags)
+      .filter(([, required]) => required)
+      .map(([key]) => key);
+  }
+
+  private selectedRequiredSignatureKeys(): string[] {
+    return Object.entries(this.requiredSignatureFlags)
+      .filter(([, required]) => required)
+      .map(([key]) => key);
+  }
+
+  private validateSignaturesVsStudentsCount(showToast = false): boolean {
+    const signaturesToApply = Object.keys(this.buildSignaturesPayload()).length;
+    if (signaturesToApply === 0) {
+      return true;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(this.dataJson);
+    } catch {
+      return true;
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      return true;
+    }
+    const container = parsed as { alumnos?: unknown; students?: unknown };
+    const studentsRaw = Array.isArray(container.alumnos)
+      ? container.alumnos
+      : Array.isArray(container.students)
+      ? container.students
+      : null;
+    if (!studentsRaw) {
+      return true;
+    }
+    if (studentsRaw.length < signaturesToApply) {
+      if (showToast) {
+        this.pushToast(
+          `El JSON tiene ${studentsRaw.length} alumnos y estas intentando aplicar ${signaturesToApply} firmas.`,
+          'error',
+          7000
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
   private async runWithFeedback(actionName: string, action: () => Promise<void>): Promise<void> {
     if (this.busyActions.has(actionName)) {
       return;
     }
-    this.busyActions.add(actionName);
+    this.setBusyAction(actionName, true);
     try {
-      await this.withActionTimeout(action(), actionName);
+      await action();
     } catch (err: unknown) {
       const message = await this.extractErrorMessage(err);
       this.pushToast(message, 'error', 7000);
     } finally {
-      this.busyActions.delete(actionName);
+      this.setBusyAction(actionName, false);
+      this.refreshUi();
     }
   }
 
-  private withActionTimeout<T>(promise: Promise<T>, actionName: string): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        window.setTimeout(() => {
-          reject(new Error(`La operacion "${actionName}" excedio el tiempo de espera.`));
-        }, this.actionTimeoutMs);
-      })
-    ]);
+  private async httpOnce<T>(obs: Observable<T>): Promise<T> {
+    return firstValueFrom(obs.pipe(timeout({ first: this.actionTimeoutMs })));
+  }
+
+  private setBusyAction(actionName: string, active: boolean): void {
+    const next = new Set(this.busyActions);
+    if (active) {
+      next.add(actionName);
+    } else {
+      next.delete(actionName);
+    }
+    this.busyActions = next;
+    this.refreshUi();
+  }
+
+  private refreshUi(): void {
+    this.cdr.detectChanges();
   }
 
   formatDate(value: string): string {
@@ -532,6 +623,7 @@ export class App implements OnInit {
 
   removeToast(toastId: string): void {
     this.toasts = this.toasts.filter((toast) => toast.id !== toastId);
+    this.refreshUi();
   }
 
   private pushToast(message: string, type: UiToast['type'], timeoutMs = 4500): void {
@@ -542,5 +634,6 @@ export class App implements OnInit {
     };
     this.toasts = [...this.toasts, toast];
     window.setTimeout(() => this.removeToast(toast.id), timeoutMs);
+    this.refreshUi();
   }
 }

@@ -1,11 +1,14 @@
 package com.example.demo.dto;
 
 import java.util.Map;
+import java.util.Set;
 
 public class TemplateMappingRequest {
 
     private Map<String, String> fieldMappings;
     private Map<String, String> signatureMappings;
+    private Set<String> requiredFieldKeys;
+    private Set<String> requiredSignatureKeys;
 
     public Map<String, String> getFieldMappings() {
         return fieldMappings;
@@ -29,5 +32,29 @@ public class TemplateMappingRequest {
 
     public Map<String, String> signatureMappingsOrEmpty() {
         return signatureMappings == null ? Map.of() : signatureMappings;
+    }
+
+    public Set<String> getRequiredFieldKeys() {
+        return requiredFieldKeys;
+    }
+
+    public void setRequiredFieldKeys(Set<String> requiredFieldKeys) {
+        this.requiredFieldKeys = requiredFieldKeys;
+    }
+
+    public Set<String> requiredFieldKeysOrEmpty() {
+        return requiredFieldKeys == null ? Set.of() : requiredFieldKeys;
+    }
+
+    public Set<String> getRequiredSignatureKeys() {
+        return requiredSignatureKeys;
+    }
+
+    public void setRequiredSignatureKeys(Set<String> requiredSignatureKeys) {
+        this.requiredSignatureKeys = requiredSignatureKeys;
+    }
+
+    public Set<String> requiredSignatureKeysOrEmpty() {
+        return requiredSignatureKeys == null ? Set.of() : requiredSignatureKeys;
     }
 }

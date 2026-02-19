@@ -95,6 +95,14 @@ button:disabled {
 	gap: 6px;
 }
 
+.checkbox-inline {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+	color: #374151;
+}
+
 .mapping-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

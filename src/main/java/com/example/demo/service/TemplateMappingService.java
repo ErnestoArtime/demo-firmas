@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class TemplateMappingService {
     public TemplateMappingMetadata loadOrEmpty(String templateId) {
         Path filePath = mappingPath(templateId);
         if (!Files.exists(filePath)) {
-            return new TemplateMappingMetadata(templateId, Map.of(), Map.of(), Instant.now());
+            return new TemplateMappingMetadata(templateId, Map.of(), Map.of(), Set.of(), Set.of(), Instant.now());
         }
         try {
             TemplateMappingMetadata metadata = objectMapper.readValue(filePath.toFile(), TemplateMappingMetadata.class);
@@ -38,6 +39,8 @@ public class TemplateMappingService {
                     templateId,
                     metadata.fieldMappings() == null ? Map.of() : metadata.fieldMappings(),
                     metadata.signatureMappings() == null ? Map.of() : metadata.signatureMappings(),
+                    metadata.requiredFieldKeys() == null ? Set.of() : metadata.requiredFieldKeys(),
+                    metadata.requiredSignatureKeys() == null ? Set.of() : metadata.requiredSignatureKeys(),
                     metadata.updatedAt() == null ? Instant.now() : metadata.updatedAt());
         } catch (IOException ex) {
             throw new IllegalStateException("No se pudo leer mapping de plantilla", ex);
@@ -47,11 +50,15 @@ public class TemplateMappingService {
     public TemplateMappingMetadata save(
             String templateId,
             Map<String, String> fieldMappings,
-            Map<String, String> signatureMappings) {
+            Map<String, String> signatureMappings,
+            Set<String> requiredFieldKeys,
+            Set<String> requiredSignatureKeys) {
         TemplateMappingMetadata metadata = new TemplateMappingMetadata(
                 templateId,
                 fieldMappings == null ? Map.of() : fieldMappings,
                 signatureMappings == null ? Map.of() : signatureMappings,
+                requiredFieldKeys == null ? Set.of() : requiredFieldKeys,
+                requiredSignatureKeys == null ? Set.of() : requiredSignatureKeys,
                 Instant.now());
         try {
             objectMapper.writeValue(mappingPath(templateId).toFile(), metadata);

@@ -82,6 +82,10 @@
                   {{ option.code }} - {{ option.description }}
                 </option>
               </select>
+              <label class="checkbox-inline">
+                <input type="checkbox" [(ngModel)]="requiredFieldFlags[field]" />
+                Campo obligatorio al generar
+              </label>
             </div>
           </div>
           <div class="mapping-col">
@@ -94,6 +98,10 @@
                   {{ option.code }} - {{ option.description }}
                 </option>
               </select>
+              <label class="checkbox-inline">
+                <input type="checkbox" [(ngModel)]="requiredSignatureFlags[signature]" />
+                Firma obligatoria al generar
+              </label>
             </div>
           </div>
         </div>
@@ -151,19 +159,15 @@
         <p class="hint">Carga una imagen por cada clave de firma requerida (PNG/JPG).</p>
         <div *ngFor="let signature of requirements.requiredSignatures" class="field-row">
           <label [for]="'signature-' + signature">{{ signature }}</label>
-          <select [(ngModel)]="selectedLibrarySignatureByField[signature]">
+          <select
+            [(ngModel)]="selectedLibrarySignatureByField[signature]"
+            (ngModelChange)="onSavedSignatureSelectionChange(signature, $event)"
+          >
             <option value="">Selecciona firma guardada (opcional)</option>
             <option *ngFor="let item of savedSignatures" [value]="item.id">
               {{ item.name }}
             </option>
           </select>
-          <button
-            type="button"
-            (click)="assignSavedSignature(signature, selectedLibrarySignatureByField[signature])"
-            [disabled]="!canAssignSavedSignature(signature)"
-          >
-            Usar firma guardada
-          </button>
           <input
             [id]="'signature-' + signature"
             type="file"

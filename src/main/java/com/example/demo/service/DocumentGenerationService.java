@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -63,8 +64,18 @@ public class DocumentGenerationService {
         Map<String, String> fields = buildFields(request, parsedDataJson, mapping);
         Map<String, String> signaturesBase64 = buildSignatures(request, parsedDataJson, mapping);
 
-        validateRequiredFields(template, fields.keySet());
-        Set<String> requiredSignatures = templateRequirementsService.extractRequiredSignatures(template);
+        Set<String> templateFieldKeys = templateRequirementsService.extractRequiredFields(template);
+        Set<String> templateSignatureKeys = templateRequirementsService.extractRequiredSignatures(template);
+        Set<String> requiredFields = resolveRequiredKeys(
+                request.requiredFieldKeysOrEmpty(),
+                mapping.requiredFieldKeys(),
+                templateFieldKeys);
+        Set<String> requiredSignatures = resolveRequiredKeys(
+                request.requiredSignatureKeysOrEmpty(),
+                mapping.requiredSignatureKeys(),
+                templateSignatureKeys);
+
+        validateRequiredFields(requiredFields, fields.keySet());
         applySignatureFallbacks(signaturesBase64, requiredSignatures);
         validateRequiredSignatures(requiredSignatures, signaturesBase64.keySet());
         Map<String, byte[]> signatures = decodeSignatures(signaturesBase64);
@@ -243,8 +254,7 @@ public class DocumentGenerationService {
         }
     }
 
-    private void validateRequiredFields(TemplateMetadata template, Set<String> providedFieldKeys) {
-        Set<String> required = templateRequirementsService.extractRequiredFields(template);
+    private void validateRequiredFields(Set<String> required, Set<String> providedFieldKeys) {
         if (required.isEmpty()) {
             return;
         }
@@ -253,11 +263,6 @@ public class DocumentGenerationService {
         if (!missing.isEmpty()) {
             throw new BadRequestException("Faltan campos requeridos: " + String.join(", ", missing));
         }
-    }
-
-    private void validateRequiredSignatures(TemplateMetadata template, Set<String> providedSignatureKeys) {
-        Set<String> required = templateRequirementsService.extractRequiredSignatures(template);
-        validateRequiredSignatures(required, providedSignatureKeys);
     }
 
     private void validateRequiredSignatures(Set<String> required, Set<String> providedSignatureKeys) {
@@ -309,6 +314,19 @@ public class DocumentGenerationService {
         for (String key : requiredSignatures) {
             signatures.putIfAbsent(key, singleValue);
         }
+    }
+
+    private Set<String> resolveRequiredKeys(
+            Set<String> requestRequired,
+            Set<String> mappingRequired,
+            Set<String> availableKeys) {
+        Set<String> preferredSource = !requestRequired.isEmpty() ? requestRequired : mappingRequired;
+        if (preferredSource.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> resolved = new LinkedHashSet<>(preferredSource);
+        resolved.retainAll(new HashSet<>(availableKeys));
+        return resolved;
     }
 
     private Map<String, byte[]> decodeSignatures(Map<String, String> signatures) {
