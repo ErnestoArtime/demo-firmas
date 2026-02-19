@@ -24,6 +24,7 @@ import com.example.demo.model.TemplateType;
 public class TemplateRequirementsService {
 
     private static final Pattern DOCX_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
+    private static final Pattern DOCX_HASH_PLACEHOLDER_PATTERN = Pattern.compile("\\b([A-Za-z][A-Za-z0-9_]*)#");
 
     public Set<String> extractRequiredSignatures(TemplateMetadata template) {
         Set<String> placeholders = extractPlaceholders(template);
@@ -73,10 +74,15 @@ public class TemplateRequirementsService {
                 while (matcher.find()) {
                     placeholders.add(matcher.group(1));
                 }
+                Matcher hashMatcher = DOCX_HASH_PLACEHOLDER_PATTERN.matcher(xml);
+                while (hashMatcher.find()) {
+                    placeholders.add(hashMatcher.group(1));
+                }
             }
             return placeholders;
         } catch (IOException ex) {
-            throw new BadRequestException("No se pudo analizar la plantilla DOCX");
+            String detail = ex.getMessage() == null ? "" : " Detalle: " + ex.getMessage();
+            throw new BadRequestException("No se pudo analizar la plantilla DOCX." + detail);
         }
     }
 

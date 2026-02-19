@@ -11,6 +11,7 @@ public class GenerateDocumentRequest {
 
     private Map<String, String> fields;
     private Map<String, String> signatures;
+    private String dataJson;
 
     public String getTemplateId() {
         return templateId;
@@ -42,5 +43,17 @@ public class GenerateDocumentRequest {
 
     public Map<String, String> signaturesOrEmpty() {
         return signatures == null ? Map.of() : signatures;
+    }
+
+    public String getDataJson() {
+        return dataJson;
+    }
+
+    public void setDataJson(String dataJson) {
+        this.dataJson = dataJson;
+    }
+
+    public boolean hasDataJson() {
+        return dataJson != null && !dataJson.isBlank();
     }
 }

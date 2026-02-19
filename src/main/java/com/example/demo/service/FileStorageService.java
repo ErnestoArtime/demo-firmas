@@ -5,7 +5,10 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -74,6 +77,18 @@ public class FileStorageService {
     public TemplateMetadata loadTemplate(String id) {
         return readJson(templatesDir.resolve(id + ".json"), TemplateMetadata.class,
                 "No existe la plantilla con id: " + id);
+    }
+
+    public List<TemplateMetadata> listTemplates() {
+        try (Stream<Path> paths = Files.list(templatesDir)) {
+            return paths
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .map(path -> readJson(path, TemplateMetadata.class, "Metadata de plantilla no encontrado"))
+                    .sorted(Comparator.comparing(TemplateMetadata::createdAt).reversed())
+                    .toList();
+        } catch (IOException ex) {
+            throw new IllegalStateException("No se pudo listar plantillas", ex);
+        }
     }
 
     public GeneratedDocumentMetadata storeGeneratedDocument(

@@ -1,42 +1,185 @@
 <main class="container">
-  <h1>Demo Firmas - Frontend Angular</h1>
-  <p class="subtitle">Backend: {{ apiBaseUrl }}</p>
+  <h1>Gestor de Plantillas y Firmas</h1>
+  <p class="subtitle">Backend activo: {{ apiBaseUrl }}</p>
 
   <section class="card">
     <h2>1) Subir plantilla</h2>
+    <p class="hint">El cliente sube una plantilla DOCX/PDF ya marcada con placeholders.</p>
     <input type="file" accept=".docx,.pdf" (change)="onFileSelected($event)" />
-    <button type="button" (click)="uploadTemplate()" [disabled]="loading">Subir plantilla</button>
+    <button type="button" (click)="uploadTemplate()" [disabled]="!canUploadTemplate()">
+      {{ isBusy('uploadTemplate') ? 'Subiendo...' : 'Subir' }}
+    </button>
   </section>
 
   <section class="card">
-    <h2>2) Consultar requisitos</h2>
+    <h2>2) Plantillas disponibles</h2>
+    <button type="button" (click)="listTemplates()" [disabled]="isBusy('listTemplates')">
+      {{ isBusy('listTemplates') ? 'Recargando...' : 'Recargar listado' }}
+    </button>
+
+    <p *ngIf="!hasTemplates()" class="hint">No hay plantillas registradas.</p>
+
+    <div class="template-list" *ngIf="hasTemplates()">
+      <article class="template-item" *ngFor="let template of templates">
+        <div>
+          <p><strong>{{ template.originalFilename }}</strong></p>
+          <p>ID: <code>{{ template.templateId }}</code></p>
+          <p>Tipo: {{ template.type }} | {{ formatDate(template.createdAt) }}</p>
+        </div>
+        <button type="button" (click)="selectTemplate(template)" [disabled]="isBusy('getRequirements')">
+          Usar plantilla
+        </button>
+      </article>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3) Requisitos de plantilla</h2>
     <label for="templateId">Template ID</label>
-    <input id="templateId" type="text" [(ngModel)]="templateId" placeholder="UUID de plantilla" />
-    <button type="button" (click)="getRequirements()" [disabled]="loading">Consultar requisitos</button>
+    <input
+      id="templateId"
+      type="text"
+      [(ngModel)]="templateId"
+      (ngModelChange)="onTemplateIdChanged($event)"
+      placeholder="UUID de plantilla"
+    />
+    <button type="button" (click)="getRequirements()" [disabled]="!canQueryRequirements()">
+      {{ isBusy('getRequirements') ? 'Consultando...' : 'Consultar requisitos' }}
+    </button>
 
     <div *ngIf="requirements" class="result">
-      <h3>requiredFields</h3>
+      <h3>Campos requeridos</h3>
       <ul>
+        <li *ngIf="requirements.requiredFields.length === 0" class="hint">Sin campos de texto.</li>
         <li *ngFor="let field of requirements.requiredFields">{{ field }}</li>
       </ul>
 
-      <h3>requiredSignatures</h3>
+      <h3>Firmas requeridas</h3>
       <ul>
+        <li *ngIf="requirements.requiredSignatures.length === 0" class="hint">Sin firmas.</li>
         <li *ngFor="let signature of requirements.requiredSignatures">{{ signature }}</li>
       </ul>
     </div>
   </section>
 
   <section class="card">
-    <h2>3) Generar documento</h2>
+    <h2>4) Generar documento</h2>
 
-    <label for="fields">Fields (JSON)</label>
-    <textarea id="fields" rows="8" [(ngModel)]="fieldsJson"></textarea>
+    <div *ngIf="requirements">
+      <div class="form-group">
+        <h3>Mapeo de variables (opcional)</h3>
+        <p class="hint">
+          Vincula variables de la plantilla con campos del catalogo BD. Esto queda guardado por templateId.
+        </p>
+        <div class="mapping-grid">
+          <div class="mapping-col">
+            <h4>Campos</h4>
+            <div *ngFor="let field of requirements.requiredFields" class="field-row">
+              <label [for]="'map-field-' + field">{{ field }}</label>
+              <select [id]="'map-field-' + field" [(ngModel)]="mappingFieldSelections[field]">
+                <option value="">Sin mapear</option>
+                <option *ngFor="let option of fieldCatalogOptions()" [value]="option.code">
+                  {{ option.code }} - {{ option.description }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="mapping-col">
+            <h4>Firmas</h4>
+            <div *ngFor="let signature of requirements.requiredSignatures" class="field-row">
+              <label [for]="'map-signature-' + signature">{{ signature }}</label>
+              <select [id]="'map-signature-' + signature" [(ngModel)]="mappingSignatureSelections[signature]">
+                <option value="">Sin mapear</option>
+                <option *ngFor="let option of signatureCatalogOptions()" [value]="option.code">
+                  {{ option.code }} - {{ option.description }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button type="button" (click)="saveTemplateMapping()" [disabled]="!canSaveMapping()">
+          {{ isBusy('saveTemplateMapping') ? 'Guardando mapeo...' : 'Guardar mapeo de plantilla' }}
+        </button>
+      </div>
 
-    <label for="signatures">Signatures (JSON base64)</label>
-    <textarea id="signatures" rows="8" [(ngModel)]="signaturesJson"></textarea>
+      <div class="form-group">
+        <h3>Libreria local de firmas (demo)</h3>
+        <p class="hint">Guarda firmas para reutilizarlas rapido sin volver a subir el mismo archivo.</p>
+        <div class="signature-library-form">
+          <input type="text" placeholder="Nombre de la firma" [(ngModel)]="newSignatureName" />
+          <input type="file" accept="image/*" (change)="onSignatureLibraryFileSelected($event)" />
+          <button type="button" (click)="saveSignatureToLibrary()" [disabled]="!canSaveSignatureToLibrary()">
+            {{ isBusy('saveSignatureToLibrary') ? 'Guardando firma...' : 'Guardar firma en libreria' }}
+          </button>
+        </div>
+        <div *ngIf="savedSignatures.length > 0" class="signature-library-list">
+          <article *ngFor="let item of savedSignatures" class="signature-library-item">
+            <div>
+              <p><strong>{{ item.name }}</strong></p>
+              <p class="hint">{{ formatDate(item.createdAt) }}</p>
+            </div>
+            <button type="button" class="btn-danger" (click)="removeSavedSignature(item.id)">
+              Eliminar
+            </button>
+          </article>
+        </div>
+      </div>
 
-    <button type="button" (click)="generateDocument()" [disabled]="loading">Generar documento</button>
+      <div class="form-group">
+        <h3>Data JSON (simulacion de integracion externa)</h3>
+        <p class="hint">
+          Pega aqui el JSON de curso/alumnos. El backend mapeara claves como BD_NOMBRES, BD_APELLIDOS, BD_NIFS y FIRMA_1..N.
+        </p>
+        <p class="hint">
+          Para repetir filas en DOCX, crea una fila modelo con tokens como ALUMNO_1_NOMBRE# o
+          <code>{{ '${ALUMNO_1_NOMBRE}' }}</code> (igual para FIRMA_1).
+        </p>
+        <textarea rows="10" [(ngModel)]="dataJson"></textarea>
+      </div>
+
+      <div class="form-group">
+        <h3>Datos del curso/alumnos</h3>
+        <p class="hint">Rellena cada clave requerida por la plantilla seleccionada.</p>
+        <div *ngFor="let field of requirements.requiredFields" class="field-row">
+          <label [for]="'field-' + field">{{ field }}</label>
+          <input [id]="'field-' + field" type="text" [(ngModel)]="fieldValues[field]" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <h3>Firmas</h3>
+        <p class="hint">Carga una imagen por cada clave de firma requerida (PNG/JPG).</p>
+        <div *ngFor="let signature of requirements.requiredSignatures" class="field-row">
+          <label [for]="'signature-' + signature">{{ signature }}</label>
+          <select [(ngModel)]="selectedLibrarySignatureByField[signature]">
+            <option value="">Selecciona firma guardada (opcional)</option>
+            <option *ngFor="let item of savedSignatures" [value]="item.id">
+              {{ item.name }}
+            </option>
+          </select>
+          <button
+            type="button"
+            (click)="assignSavedSignature(signature, selectedLibrarySignatureByField[signature])"
+            [disabled]="!canAssignSavedSignature(signature)"
+          >
+            Usar firma guardada
+          </button>
+          <input
+            [id]="'signature-' + signature"
+            type="file"
+            accept="image/*"
+            (change)="onSignatureSelected(signature, $event)"
+          />
+          <small *ngIf="selectedSignatureFiles[signature]">
+            {{ selectedSignatureFiles[signature] }}
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" (click)="generateDocument()" [disabled]="!canGenerateDocument()">
+      {{ isBusy('generateDocument') ? 'Generando...' : 'Generar documento' }}
+    </button>
 
     <div *ngIf="generated" class="result">
       <p><strong>Document ID:</strong> {{ generated.documentId }}</p>
@@ -44,6 +187,17 @@
     </div>
   </section>
 
-  <p *ngIf="message" class="ok">{{ message }}</p>
-  <p *ngIf="error" class="error">{{ error }}</p>
 </main>
+
+<section class="toast-container" *ngIf="toasts.length > 0">
+  <article
+    *ngFor="let toast of toasts"
+    class="toast"
+    [class.toast-success]="toast.type === 'success'"
+    [class.toast-error]="toast.type === 'error'"
+    [class.toast-info]="toast.type === 'info'"
+  >
+    <p>{{ toast.message }}</p>
+    <button type="button" class="toast-close" (click)="removeToast(toast.id)">x</button>
+  </article>
+</section>

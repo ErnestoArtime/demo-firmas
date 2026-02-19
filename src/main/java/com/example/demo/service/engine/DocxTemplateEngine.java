@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import jakarta.xml.bind.JAXBElement;
 
@@ -21,6 +24,7 @@ import org.docx4j.wml.Drawing;
 import org.docx4j.wml.ObjectFactory;
 import org.docx4j.wml.R;
 import org.docx4j.wml.Text;
+import org.docx4j.wml.Tr;
 import org.springframework.stereotype.Component;
 
 import com.example.demo.model.TemplateType;
@@ -32,6 +36,12 @@ public class DocxTemplateEngine implements TemplateEngine {
     private static final int PX_TO_EMU = 9525;
     private static final long SIGNATURE_WIDTH_EMU = 220L * PX_TO_EMU;
     private static final long SIGNATURE_HEIGHT_EMU = 70L * PX_TO_EMU;
+    private static final Pattern TOKEN_PATTERN =
+            Pattern.compile("(\\$\\{([A-Za-z0-9_]+)})|\\b([A-Za-z][A-Za-z0-9_]*)#");
+    private static final Pattern STUDENT_ROW_DOCX_PATTERN =
+            Pattern.compile("\\$\\{ALUMNO_1_[A-Za-z0-9_]+}|\\$\\{FIRMA_1}|\\bALUMNO_1_[A-Za-z0-9_]+#|\\bFIRMA_1#");
+    private static final Pattern STUDENT_INDEXED_TOKEN_PATTERN =
+            Pattern.compile("ALUMNO_(\\d+)_|FIRMA_(\\d+)");
 
     @Override
     public boolean supports(TemplateType type) {
@@ -44,6 +54,8 @@ public class DocxTemplateEngine implements TemplateEngine {
             WordprocessingMLPackage word = WordprocessingMLPackage.load(Files.newInputStream(templatePath));
             VariablePrepare.prepare(word);
 
+            duplicateStudentRows(word, fields, signatures);
+            replaceHashFieldTokens(word, fields);
             replaceSignatures(word, signatures);
             word.getMainDocumentPart().variableReplace(fields);
 
@@ -82,6 +94,118 @@ public class DocxTemplateEngine implements TemplateEngine {
         }
     }
 
+    private void duplicateStudentRows(
+            WordprocessingMLPackage word,
+            Map<String, String> fields,
+            Map<String, byte[]> signatures) {
+        int maxStudentIndex = resolveMaxStudentIndex(fields, signatures);
+        if (maxStudentIndex <= 1) {
+            return;
+        }
+
+        List<Object> rows = getAllElementsFromObject(word.getMainDocumentPart(), Tr.class);
+        for (Object rowObj : rows) {
+            Tr row = (Tr) rowObj;
+            String rowText = extractRowText(row);
+            if (rowText.isBlank() || !STUDENT_ROW_DOCX_PATTERN.matcher(rowText).find()) {
+                continue;
+            }
+
+            if (!(XmlUtils.unwrap(row.getParent()) instanceof org.docx4j.wml.ContentAccessor parent)) {
+                continue;
+            }
+            List<Object> parentContent = parent.getContent();
+            int rowIndex = parentContent.indexOf(row);
+            if (rowIndex < 0) {
+                continue;
+            }
+
+            for (int studentIndex = 2; studentIndex <= maxStudentIndex; studentIndex++) {
+                Tr clonedRow = (Tr) XmlUtils.deepCopy(row);
+                replaceStudentIndexTokens(clonedRow, studentIndex);
+                parentContent.add(rowIndex + (studentIndex - 1), clonedRow);
+            }
+        }
+    }
+
+    private int resolveMaxStudentIndex(Map<String, String> fields, Map<String, byte[]> signatures) {
+        int maxFromFields = fields.keySet().stream()
+                .mapToInt(this::extractStudentIndex)
+                .max()
+                .orElse(0);
+        int maxFromSignatures = signatures.keySet().stream()
+                .mapToInt(this::extractStudentIndex)
+                .max()
+                .orElse(0);
+        return Math.max(maxFromFields, maxFromSignatures);
+    }
+
+    private int extractStudentIndex(String key) {
+        Matcher matcher = STUDENT_INDEXED_TOKEN_PATTERN.matcher(key);
+        if (!matcher.find()) {
+            return 0;
+        }
+        String group = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+        if (group == null || group.isBlank()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(group);
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private String extractRowText(Tr row) {
+        List<Object> textNodes = getAllElementsFromObject(row, Text.class);
+        StringBuilder builder = new StringBuilder();
+        for (Object obj : textNodes) {
+            Text text = (Text) obj;
+            if (text.getValue() != null) {
+                builder.append(text.getValue()).append(' ');
+            }
+        }
+        return builder.toString();
+    }
+
+    private void replaceStudentIndexTokens(Tr row, int studentIndex) {
+        List<Object> textNodes = getAllElementsFromObject(row, Text.class);
+        for (Object obj : textNodes) {
+            Text text = (Text) obj;
+            String value = text.getValue();
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+
+            String updated = value.replaceAll("ALUMNO_1_", "ALUMNO_" + studentIndex + "_")
+                    .replaceAll("FIRMA_1", "FIRMA_" + studentIndex);
+            text.setValue(updated);
+        }
+    }
+
+    private void replaceHashFieldTokens(WordprocessingMLPackage word, Map<String, String> fields) {
+        if (fields.isEmpty()) {
+            return;
+        }
+        List<Object> textNodes = getAllElementsFromObject(word.getMainDocumentPart(), Text.class);
+        for (Object obj : textNodes) {
+            Text text = (Text) obj;
+            String value = text.getValue();
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            String updated = value;
+            for (Map.Entry<String, String> entry : fields.entrySet()) {
+                String token = entry.getKey() + "#";
+                String replacement = entry.getValue() == null ? "" : entry.getValue();
+                updated = updated.replace(token, replacement);
+            }
+            if (!updated.equals(value)) {
+                text.setValue(updated);
+            }
+        }
+    }
+
     private List<Object> buildReplacementContent(
             WordprocessingMLPackage word,
             String originalValue,
@@ -90,31 +214,21 @@ public class DocxTemplateEngine implements TemplateEngine {
         List<Object> content = new ArrayList<>();
         boolean replacedSomething = false;
 
+        Matcher matcher = TOKEN_PATTERN.matcher(originalValue);
         int cursor = 0;
-        while (cursor < originalValue.length()) {
-            int start = originalValue.indexOf("${", cursor);
-            if (start < 0) {
-                addTextIfNotEmpty(content, originalValue.substring(cursor));
-                break;
-            }
-            int end = originalValue.indexOf('}', start + 2);
-            if (end < 0) {
-                addTextIfNotEmpty(content, originalValue.substring(cursor));
-                break;
-            }
-
-            addTextIfNotEmpty(content, originalValue.substring(cursor, start));
-
-            String key = originalValue.substring(start + 2, end);
+        while (matcher.find()) {
+            addTextIfNotEmpty(content, originalValue.substring(cursor, matcher.start()));
+            String key = matcher.group(2) != null ? matcher.group(2) : matcher.group(3);
             byte[] signature = signatures.get(key);
-            if (signature != null) {
+            if (signature == null) {
+                addTextIfNotEmpty(content, matcher.group(0));
+            } else {
                 content.add(createDrawing(word, key, signature, imageCounter.getAndIncrement()));
                 replacedSomething = true;
-            } else {
-                addTextIfNotEmpty(content, originalValue.substring(start, end + 1));
             }
-            cursor = end + 1;
+            cursor = matcher.end();
         }
+        addTextIfNotEmpty(content, originalValue.substring(cursor));
 
         return replacedSomething ? content : List.of();
     }
