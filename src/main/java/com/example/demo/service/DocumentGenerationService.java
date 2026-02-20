@@ -20,6 +20,7 @@ import com.example.demo.exception.BadRequestException;
 import com.example.demo.model.GeneratedDocumentMetadata;
 import com.example.demo.model.TemplateMetadata;
 import com.example.demo.model.TemplateMappingMetadata;
+import com.example.demo.model.TemplateType;
 import com.example.demo.service.engine.GeneratedFile;
 import com.example.demo.service.engine.TemplateEngine;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -37,6 +38,7 @@ public class DocumentGenerationService {
     private final TemplateRequirementsService templateRequirementsService;
     private final TemplateMappingService templateMappingService;
     private final List<TemplateEngine> templateEngines;
+    private final TemplateConversionService templateConversionService;
     private final ObjectMapper objectMapper;
 
     public DocumentGenerationService(
@@ -44,11 +46,13 @@ public class DocumentGenerationService {
             TemplateRequirementsService templateRequirementsService,
             TemplateMappingService templateMappingService,
             List<TemplateEngine> templateEngines,
+            TemplateConversionService templateConversionService,
             ObjectMapper objectMapper) {
         this.fileStorageService = fileStorageService;
         this.templateRequirementsService = templateRequirementsService;
         this.templateMappingService = templateMappingService;
         this.templateEngines = templateEngines;
+        this.templateConversionService = templateConversionService;
         this.objectMapper = objectMapper;
     }
 
@@ -58,6 +62,7 @@ public class DocumentGenerationService {
                 .filter(it -> it.supports(template.type()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No existe motor para tipo " + template.type()));
+        TemplateType outputType = resolveOutputType(request, template.type());
 
         ParsedDataJson parsedDataJson = parseDataJson(request);
         TemplateMappingMetadata mapping = templateMappingService.loadOrEmpty(template.id());
@@ -85,10 +90,26 @@ public class DocumentGenerationService {
                 fields,
                 signatures);
 
+        byte[] outputContent = generatedFile.content();
+        if (template.type() == TemplateType.DOCX && outputType == TemplateType.PDF) {
+            outputContent = templateConversionService.convertDocxToPdf(generatedFile.content());
+        }
+
         return fileStorageService.storeGeneratedDocument(
                 template.id(),
-                generatedFile.type(),
-                generatedFile.content());
+                outputType,
+                outputContent);
+    }
+
+    private TemplateType resolveOutputType(GenerateDocumentRequest request, TemplateType templateType) {
+        if (request.getOutputType() == null || request.getOutputType().isBlank()) {
+            return templateType;
+        }
+        TemplateType desired = TemplateType.fromValue(request.getOutputType());
+        if (templateType == TemplateType.PDF && desired != TemplateType.PDF) {
+            throw new BadRequestException("No se puede generar DOCX a partir de una plantilla PDF");
+        }
+        return desired;
     }
 
     private Map<String, String> buildFields(

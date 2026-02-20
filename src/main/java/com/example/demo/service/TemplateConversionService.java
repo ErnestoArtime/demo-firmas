@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.model.TemplateMetadata;
+import com.example.demo.model.TemplateType;
 
 @Service
 public class TemplateConversionService {
@@ -32,6 +33,10 @@ public class TemplateConversionService {
     }
 
     public TemplateMetadata convertAndStoreAsDocx(MultipartFile sourceFile) {
+        return convertAndStore(sourceFile, TemplateType.DOCX);
+    }
+
+    public TemplateMetadata convertAndStore(MultipartFile sourceFile, TemplateType targetType) {
         if (sourceFile == null || sourceFile.isEmpty()) {
             throw new BadRequestException("Debe enviar un archivo");
         }
@@ -39,27 +44,19 @@ public class TemplateConversionService {
         String filename = sourceFile.getOriginalFilename() == null ? "" : sourceFile.getOriginalFilename();
         String ext = extensionOf(filename).toLowerCase(Locale.ROOT);
         if (!ext.equals("rtf") && !ext.equals("doc")) {
-            throw new BadRequestException("Solo se puede convertir .rtf o .doc a .docx");
+            throw new BadRequestException("Solo se puede convertir .rtf o .doc");
         }
 
         Path tempDir = null;
         try {
             tempDir = Files.createTempDirectory("template-convert-");
-            Path input = tempDir.resolve("input." + ext);
-            Files.write(input, sourceFile.getBytes());
-
-            runSofficeConversion(input, tempDir);
-
-            Path output = tempDir.resolve("input.docx");
-            if (!Files.exists(output)) {
-                throw new IllegalStateException("LibreOffice no genero archivo DOCX de salida");
-            }
+            byte[] outputBytes = convertBytes(sourceFile.getBytes(), ext, targetType, tempDir);
 
             String baseName = baseName(filename);
             if (baseName.isBlank()) {
                 baseName = "template_convertida";
             }
-            return fileStorageService.storeTemplateBytes(baseName + ".docx", Files.readAllBytes(output));
+            return fileStorageService.storeTemplateBytes(baseName + "." + targetType.extension(), outputBytes);
         } catch (IOException ex) {
             throw new IllegalStateException("No se pudo convertir el archivo", ex);
         } finally {
@@ -67,13 +64,42 @@ public class TemplateConversionService {
         }
     }
 
-    private void runSofficeConversion(Path input, Path outputDir) {
+    public byte[] convertDocxToPdf(byte[] docxBytes) {
+        if (docxBytes == null || docxBytes.length == 0) {
+            throw new BadRequestException("Documento DOCX vacio");
+        }
+        Path tempDir = null;
+        try {
+            tempDir = Files.createTempDirectory("docx-pdf-");
+            return convertBytes(docxBytes, "docx", TemplateType.PDF, tempDir);
+        } catch (IOException ex) {
+            throw new IllegalStateException("No se pudo convertir DOCX a PDF", ex);
+        } finally {
+            deleteRecursively(tempDir);
+        }
+    }
+
+    private byte[] convertBytes(byte[] inputBytes, String inputExt, TemplateType targetType, Path tempDir)
+            throws IOException {
+        Path input = tempDir.resolve("input." + inputExt);
+        Files.write(input, inputBytes);
+
+        runSofficeConversion(input, tempDir, targetType);
+
+        Path output = tempDir.resolve("input." + targetType.extension());
+        if (!Files.exists(output)) {
+            throw new IllegalStateException("LibreOffice no genero archivo de salida");
+        }
+        return Files.readAllBytes(output);
+    }
+
+    private void runSofficeConversion(Path input, Path outputDir, TemplateType targetType) {
         try {
             List<String> command = new ArrayList<>();
             command.add(sofficeCommand);
             command.add("--headless");
             command.add("--convert-to");
-            command.add("docx");
+            command.add(targetType.extension());
             command.add("--outdir");
             command.add(outputDir.toString());
             command.add(input.toString());

@@ -67,6 +67,9 @@ export class App implements OnInit {
   selectedFile: File | null = null;
   templateId = '';
   selectedTemplateId = '';
+  templateUploadMode: 'direct' | 'convert-docx' | 'convert-pdf' = 'direct';
+  outputType: 'docx' | 'pdf' = 'docx';
+  selectedTemplateType: '' | 'docx' | 'pdf' = '';
   templates: TemplateUploadResponse[] = [];
   requirements: TemplateRequirementsResponse | null = null;
   generated: GenerateDocumentResponse | null = null;
@@ -132,7 +135,16 @@ export class App implements OnInit {
 
   async uploadTemplate(): Promise<void> {
     if (!this.selectedFile) {
-      this.pushToast('Selecciona un archivo DOCX o PDF.', 'error');
+      this.pushToast('Selecciona un archivo.', 'error');
+      return;
+    }
+
+    if (this.templateUploadMode === 'direct' && !this.isDirectTemplateFile(this.selectedFile)) {
+      this.pushToast('Solo puedes subir DOCX o PDF sin conversion.', 'error');
+      return;
+    }
+    if (this.templateUploadMode !== 'direct' && !this.isConvertibleTemplateFile(this.selectedFile)) {
+      this.pushToast('Solo puedes convertir archivos RTF o DOC.', 'error');
       return;
     }
 
@@ -140,12 +152,21 @@ export class App implements OnInit {
     formData.append('file', this.selectedFile);
 
     await this.runWithFeedback('uploadTemplate', async () => {
-      const response = await this.httpOnce(
-        this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
-      );
+      const response =
+        this.templateUploadMode === 'direct'
+          ? await this.httpOnce(
+              this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
+            )
+          : await this.httpOnce(
+              this.http.post<TemplateUploadResponse>(
+                `${this.apiBaseUrl}/api/templates/convert?target=${this.templateUploadMode === 'convert-docx' ? 'docx' : 'pdf'}`,
+                formData
+              )
+            );
       this.templateId = response.templateId;
       this.selectedTemplateId = response.templateId;
       this.upsertTemplateInList(response);
+      this.syncOutputTypeWithTemplate(response.templateId);
       this.generated = null;
       this.pushToast(`Plantilla subida: ${response.templateId}`, 'success');
 
@@ -174,6 +195,7 @@ export class App implements OnInit {
   async selectTemplate(template: TemplateUploadResponse): Promise<void> {
     this.templateId = template.templateId;
     this.selectedTemplateId = template.templateId;
+    this.syncOutputTypeWithTemplate(template.templateId);
     await this.getRequirements(true);
   }
 
@@ -208,7 +230,8 @@ export class App implements OnInit {
           signatures: this.buildSignaturesPayload(),
           dataJson: this.dataJson,
           requiredFieldKeys: this.selectedRequiredFieldKeys(),
-          requiredSignatureKeys: this.selectedRequiredSignatureKeys()
+          requiredSignatureKeys: this.selectedRequiredSignatureKeys(),
+          outputType: this.outputType
         })
       );
       this.pushToast(`Documento generado: ${this.generated.documentId}`, 'success');
@@ -482,6 +505,7 @@ export class App implements OnInit {
   onTemplateIdChanged(value: string): void {
     this.templateId = value;
     this.selectedTemplateId = value.trim();
+    this.syncOutputTypeWithTemplate(this.selectedTemplateId);
   }
 
   private currentTemplateId(): string {
@@ -534,6 +558,41 @@ export class App implements OnInit {
       return false;
     }
     return true;
+  }
+
+  private isDirectTemplateFile(file: File): boolean {
+    const ext = this.fileExtension(file.name);
+    return ext === 'docx' || ext === 'pdf';
+  }
+
+  private isConvertibleTemplateFile(file: File): boolean {
+    const ext = this.fileExtension(file.name);
+    return ext === 'rtf' || ext === 'doc';
+  }
+
+  private fileExtension(filename: string): string {
+    const idx = filename.lastIndexOf('.');
+    if (idx < 0 || idx === filename.length - 1) {
+      return '';
+    }
+    return filename.substring(idx + 1).toLowerCase();
+  }
+
+  private syncOutputTypeWithTemplate(templateId: string): void {
+    if (!templateId) {
+      return;
+    }
+    const template = this.templates.find((item) => item.templateId === templateId);
+    if (!template) {
+      this.selectedTemplateType = '';
+      return;
+    }
+    this.selectedTemplateType = template.type?.toLowerCase() === 'pdf' ? 'pdf' : 'docx';
+    if (this.selectedTemplateType === 'pdf') {
+      this.outputType = 'pdf';
+    } else if (!this.outputType) {
+      this.outputType = 'docx';
+    }
   }
 
   private async runWithFeedback(actionName: string, action: () => Promise<void>): Promise<void> {

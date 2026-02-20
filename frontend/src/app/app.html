@@ -4,8 +4,18 @@
 
   <section class="card">
     <h2>1) Subir plantilla</h2>
-    <p class="hint">El cliente sube una plantilla DOCX/PDF ya marcada con placeholders.</p>
-    <input type="file" accept=".docx,.pdf" (change)="onFileSelected($event)" />
+    <p class="hint">
+      Sube una plantilla DOCX/PDF o convierte un archivo RTF/DOC a DOCX/PDF antes de guardarla.
+    </p>
+    <div class="inline-controls">
+      <label for="uploadMode">Modo</label>
+      <select id="uploadMode" [(ngModel)]="templateUploadMode">
+        <option value="direct">Sin conversion (DOCX/PDF)</option>
+        <option value="convert-docx">Convertir a DOCX (desde RTF/DOC)</option>
+        <option value="convert-pdf">Convertir a PDF (desde RTF/DOC)</option>
+      </select>
+    </div>
+    <input type="file" accept=".docx,.pdf,.doc,.rtf" (change)="onFileSelected($event)" />
     <button type="button" (click)="uploadTemplate()" [disabled]="!canUploadTemplate()">
       {{ isBusy('uploadTemplate') ? 'Subiendo...' : 'Subir' }}
     </button>
@@ -66,6 +76,21 @@
     <h2>4) Generar documento</h2>
 
     <div *ngIf="requirements">
+      <div class="form-group">
+        <h3>Formato de salida</h3>
+        <p class="hint">Elige si deseas el documento final en DOCX o PDF.</p>
+        <div class="inline-controls">
+          <label for="outputType">Salida</label>
+          <select id="outputType" [(ngModel)]="outputType">
+            <option value="docx" [disabled]="selectedTemplateType === 'pdf'">DOCX</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
+        <p *ngIf="selectedTemplateType === 'pdf'" class="hint">
+          Las plantillas PDF solo pueden generar PDF.
+        </p>
+      </div>
+
       <div class="form-group">
         <h3>Mapeo de variables (opcional)</h3>
         <p class="hint">

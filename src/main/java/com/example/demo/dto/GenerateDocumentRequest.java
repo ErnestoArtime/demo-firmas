@@ -15,6 +15,7 @@ public class GenerateDocumentRequest {
     private String dataJson;
     private Set<String> requiredFieldKeys;
     private Set<String> requiredSignatureKeys;
+    private String outputType;
 
     public String getTemplateId() {
         return templateId;
@@ -82,5 +83,13 @@ public class GenerateDocumentRequest {
 
     public Set<String> requiredSignatureKeysOrEmpty() {
         return requiredSignatureKeys == null ? Set.of() : requiredSignatureKeys;
+    }
+
+    public String getOutputType() {
+        return outputType;
+    }
+
+    public void setOutputType(String outputType) {
+        this.outputType = outputType;
     }
 }

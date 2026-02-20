@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.dto.TemplateUploadResponse;
@@ -25,6 +26,7 @@ import com.example.demo.dto.TemplateMappingRequest;
 import com.example.demo.dto.TemplateMappingResponse;
 import com.example.demo.model.TemplateMetadata;
 import com.example.demo.model.TemplateMappingMetadata;
+import com.example.demo.model.TemplateType;
 import com.example.demo.service.FileStorageService;
 import com.example.demo.service.SampleTemplateService;
 import com.example.demo.service.TemplateMappingService;
@@ -61,8 +63,11 @@ public class TemplateController {
     }
 
     @PostMapping(value = "/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public TemplateUploadResponse convertTemplate(@RequestPart("file") MultipartFile file) {
-        TemplateMetadata metadata = templateConversionService.convertAndStoreAsDocx(file);
+    public TemplateUploadResponse convertTemplate(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(name = "target", defaultValue = "docx") String target) {
+        TemplateType targetType = TemplateType.fromValue(target);
+        TemplateMetadata metadata = templateConversionService.convertAndStore(file, targetType);
         return mapUploadResponse(metadata);
     }
 

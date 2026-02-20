@@ -39,4 +39,11 @@ public enum TemplateType {
         }
         return fromExtension(filename.substring(lastDot + 1));
     }
+
+    public static TemplateType fromValue(String value) {
+        if (value == null || value.isBlank()) {
+            throw new BadRequestException("Tipo de salida invalido");
+        }
+        return fromExtension(value.trim());
+    }
 }
