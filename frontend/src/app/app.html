@@ -3,26 +3,32 @@
   <p class="subtitle">Backend activo: {{ apiBaseUrl }}</p>
 
   <section class="card">
-    <h2>1) Subir plantilla</h2>
-    <p class="hint">
-      Sube una plantilla DOCX/PDF o convierte un archivo RTF/DOC a DOCX/PDF antes de guardarla.
-    </p>
+    <h2>1) Convertir plantilla (paso separado)</h2>
+    <p class="hint">Convierte RTF/DOC y descarga el resultado para revisarlo o poner marcas antes de subirlo.</p>
     <div class="inline-controls">
-      <label for="uploadMode">Modo</label>
-      <select id="uploadMode" [(ngModel)]="templateUploadMode">
-        <option value="direct">Sin conversion (DOCX/PDF)</option>
-        <option value="convert-docx">Convertir a DOCX (desde RTF/DOC)</option>
-        <option value="convert-pdf">Convertir a PDF (desde RTF/DOC)</option>
+      <label for="conversionTarget">Formato destino</label>
+      <select id="conversionTarget" [(ngModel)]="conversionTarget">
+        <option value="docx">DOCX</option>
+        <option value="pdf">PDF</option>
       </select>
     </div>
-    <input type="file" accept=".docx,.pdf,.doc,.rtf" (change)="onFileSelected($event)" />
+    <input type="file" accept=".doc,.rtf" (change)="onConvertibleFileSelected($event)" />
+    <button type="button" (click)="convertTemplateAndDownload()" [disabled]="!canConvertTemplate()">
+      {{ isBusy('convertTemplate') ? 'Convirtiendo...' : 'Convertir y descargar' }}
+    </button>
+  </section>
+
+  <section class="card">
+    <h2>2) Subir plantilla</h2>
+    <p class="hint">Sube solo DOCX/PDF. Este flujo no convierte archivos.</p>
+    <input type="file" accept=".docx,.pdf" (change)="onUploadFileSelected($event)" />
     <button type="button" (click)="uploadTemplate()" [disabled]="!canUploadTemplate()">
       {{ isBusy('uploadTemplate') ? 'Subiendo...' : 'Subir' }}
     </button>
   </section>
 
   <section class="card">
-    <h2>2) Plantillas disponibles</h2>
+    <h2>3) Plantillas disponibles</h2>
     <button type="button" (click)="listTemplates()" [disabled]="isBusy('listTemplates')">
       {{ isBusy('listTemplates') ? 'Recargando...' : 'Recargar listado' }}
     </button>
@@ -44,7 +50,7 @@
   </section>
 
   <section class="card">
-    <h2>3) Requisitos de plantilla</h2>
+    <h2>4) Requisitos de plantilla</h2>
     <label for="templateId">Template ID</label>
     <input
       id="templateId"
@@ -73,7 +79,7 @@
   </section>
 
   <section class="card">
-    <h2>4) Generar documento</h2>
+    <h2>5) Generar documento</h2>
 
     <div *ngIf="requirements">
       <div class="form-group">

@@ -21,6 +21,7 @@ La app queda en `http://localhost:4200` y las llamadas a `/api/*` se redirigen a
 ## Funcionalidad incluida
 
 - Subir plantilla (`POST /api/templates`)
+- Convertir plantilla RTF/DOC y descargar resultado (`POST /api/templates/convert/download?target=docx|pdf`)
 - Consultar requisitos (`GET /api/templates/{templateId}/requirements`)
 - Generar documento (`POST /api/documents/generate`)
 - Descargar documento generado

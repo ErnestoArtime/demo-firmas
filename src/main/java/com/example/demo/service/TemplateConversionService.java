@@ -37,6 +37,11 @@ public class TemplateConversionService {
     }
 
     public TemplateMetadata convertAndStore(MultipartFile sourceFile, TemplateType targetType) {
+        ConvertedTemplate converted = convert(sourceFile, targetType);
+        return fileStorageService.storeTemplateBytes(converted.filename(), converted.content());
+    }
+
+    public ConvertedTemplate convert(MultipartFile sourceFile, TemplateType targetType) {
         if (sourceFile == null || sourceFile.isEmpty()) {
             throw new BadRequestException("Debe enviar un archivo");
         }
@@ -56,7 +61,7 @@ public class TemplateConversionService {
             if (baseName.isBlank()) {
                 baseName = "template_convertida";
             }
-            return fileStorageService.storeTemplateBytes(baseName + "." + targetType.extension(), outputBytes);
+            return new ConvertedTemplate(baseName + "." + targetType.extension(), targetType, outputBytes);
         } catch (IOException ex) {
             throw new IllegalStateException("No se pudo convertir el archivo", ex);
         } finally {
@@ -153,5 +158,8 @@ public class TemplateConversionService {
                     });
         } catch (IOException ignored) {
         }
+    }
+
+    public record ConvertedTemplate(String filename, TemplateType type, byte[] content) {
     }
 }

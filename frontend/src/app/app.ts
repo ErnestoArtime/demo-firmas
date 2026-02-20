@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Observable, firstValueFrom, timeout } from 'rxjs';
@@ -65,9 +65,10 @@ export class App implements OnInit {
   private readonly actionTimeoutMs = 20000;
 
   selectedFile: File | null = null;
+  selectedConvertibleFile: File | null = null;
   templateId = '';
   selectedTemplateId = '';
-  templateUploadMode: 'direct' | 'convert-docx' | 'convert-pdf' = 'direct';
+  conversionTarget: 'docx' | 'pdf' = 'docx';
   outputType: 'docx' | 'pdf' = 'docx';
   selectedTemplateType: '' | 'docx' | 'pdf' = '';
   templates: TemplateUploadResponse[] = [];
@@ -128,9 +129,14 @@ export class App implements OnInit {
     await this.listTemplates(false);
   }
 
-  onFileSelected(event: Event): void {
+  onUploadFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.selectedFile = input.files?.[0] ?? null;
+  }
+
+  onConvertibleFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedConvertibleFile = input.files?.[0] ?? null;
   }
 
   async uploadTemplate(): Promise<void> {
@@ -138,13 +144,8 @@ export class App implements OnInit {
       this.pushToast('Selecciona un archivo.', 'error');
       return;
     }
-
-    if (this.templateUploadMode === 'direct' && !this.isDirectTemplateFile(this.selectedFile)) {
-      this.pushToast('Solo puedes subir DOCX o PDF sin conversion.', 'error');
-      return;
-    }
-    if (this.templateUploadMode !== 'direct' && !this.isConvertibleTemplateFile(this.selectedFile)) {
-      this.pushToast('Solo puedes convertir archivos RTF o DOC.', 'error');
+    if (!this.isDirectTemplateFile(this.selectedFile)) {
+      this.pushToast('Solo puedes subir DOCX o PDF en el flujo principal.', 'error');
       return;
     }
 
@@ -152,17 +153,9 @@ export class App implements OnInit {
     formData.append('file', this.selectedFile);
 
     await this.runWithFeedback('uploadTemplate', async () => {
-      const response =
-        this.templateUploadMode === 'direct'
-          ? await this.httpOnce(
-              this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
-            )
-          : await this.httpOnce(
-              this.http.post<TemplateUploadResponse>(
-                `${this.apiBaseUrl}/api/templates/convert?target=${this.templateUploadMode === 'convert-docx' ? 'docx' : 'pdf'}`,
-                formData
-              )
-            );
+      const response = await this.httpOnce(
+        this.http.post<TemplateUploadResponse>(`${this.apiBaseUrl}/api/templates`, formData)
+      );
       this.templateId = response.templateId;
       this.selectedTemplateId = response.templateId;
       this.upsertTemplateInList(response);
@@ -180,6 +173,31 @@ export class App implements OnInit {
       if (requirementsResult.status === 'rejected') {
         this.pushToast('Se subio la plantilla, pero no se pudieron cargar requisitos.', 'info');
       }
+    });
+  }
+
+  async convertTemplateAndDownload(): Promise<void> {
+    if (!this.selectedConvertibleFile) {
+      this.pushToast('Selecciona un archivo RTF o DOC para convertir.', 'error');
+      return;
+    }
+    if (!this.isConvertibleTemplateFile(this.selectedConvertibleFile)) {
+      this.pushToast('Solo puedes convertir archivos RTF o DOC.', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', this.selectedConvertibleFile);
+
+    await this.runWithFeedback('convertTemplate', async () => {
+      const response = await this.httpOnce(
+        this.http.post(`${this.apiBaseUrl}/api/templates/convert/download?target=${this.conversionTarget}`, formData, {
+          observe: 'response',
+          responseType: 'blob'
+        })
+      );
+      this.downloadConvertedTemplate(response);
+      this.pushToast('Archivo convertido y descargado. Puedes revisarlo y luego subirlo como plantilla.', 'success');
     });
   }
 
@@ -332,6 +350,10 @@ export class App implements OnInit {
 
   canUploadTemplate(): boolean {
     return Boolean(this.selectedFile) && !this.isBusy();
+  }
+
+  canConvertTemplate(): boolean {
+    return Boolean(this.selectedConvertibleFile) && !this.isBusy();
   }
 
   canQueryRequirements(): boolean {
@@ -593,6 +615,37 @@ export class App implements OnInit {
     } else if (!this.outputType) {
       this.outputType = 'docx';
     }
+  }
+
+  private downloadConvertedTemplate(response: HttpResponse<Blob>): void {
+    const blob = response.body;
+    if (!blob) {
+      throw new Error('No se recibio archivo convertido.');
+    }
+    const contentDisposition = response.headers.get('content-disposition');
+    const filename = this.extractFilenameFromContentDisposition(contentDisposition) ?? `plantilla_convertida.${this.conversionTarget}`;
+    this.downloadBlob(blob, filename);
+  }
+
+  private extractFilenameFromContentDisposition(contentDisposition: string | null): string | null {
+    if (!contentDisposition) {
+      return null;
+    }
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+    const plainMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    return plainMatch?.[1] ?? null;
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   private async runWithFeedback(actionName: string, action: () => Promise<void>): Promise<void> {

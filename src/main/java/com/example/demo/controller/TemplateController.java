@@ -71,6 +71,24 @@ public class TemplateController {
         return mapUploadResponse(metadata);
     }
 
+    @PostMapping(value = "/convert/download", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ByteArrayResource> convertTemplateDownload(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(name = "target", defaultValue = "docx") String target) {
+        TemplateType targetType = TemplateType.fromValue(target);
+        TemplateConversionService.ConvertedTemplate converted = templateConversionService.convert(file, targetType);
+        ByteArrayResource resource = new ByteArrayResource(converted.content());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(converted.type().mediaType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(converted.filename())
+                        .build()
+                        .toString())
+                .contentLength(converted.content().length)
+                .body(resource);
+    }
+
     @GetMapping
     public List<TemplateUploadResponse> listTemplates() {
         return fileStorageService.listTemplates()
