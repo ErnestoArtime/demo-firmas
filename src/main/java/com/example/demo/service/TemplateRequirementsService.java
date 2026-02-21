@@ -23,8 +23,8 @@ import com.example.demo.model.TemplateType;
 @Service
 public class TemplateRequirementsService {
 
-    private static final Pattern DOCX_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
-    private static final Pattern DOCX_HASH_PLACEHOLDER_PATTERN = Pattern.compile("\\b([A-Za-z][A-Za-z0-9_]*)#");
+    private static final Pattern DOCX_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{\\s*([A-Za-z0-9_.-]+)\\s*}");
+    private static final Pattern DOCX_HASH_PLACEHOLDER_PATTERN = Pattern.compile("\\b([A-Za-z][A-Za-z0-9_.-]*)#");
 
     public Set<String> extractRequiredSignatures(TemplateMetadata template) {
         Set<String> placeholders = extractPlaceholders(template);
@@ -65,8 +65,10 @@ public class TemplateRequirementsService {
             var entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
-                String name = entry.getName();
-                if (!name.startsWith("word/") || !name.endsWith(".xml")) {
+                String name = entry.getName().toLowerCase().replace('\\', '/');
+                
+                // Buscamos en cualquier archivo XML dentro de la carpeta word/
+                if (!name.contains("word/") || !name.endsWith(".xml")) {
                     continue;
                 }
                 String xml = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
