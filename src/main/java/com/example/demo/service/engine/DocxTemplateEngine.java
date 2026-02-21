@@ -52,6 +52,16 @@ public class DocxTemplateEngine implements TemplateEngine {
     public GeneratedFile generate(Path templatePath, Map<String, String> fields, Map<String, byte[]> signatures) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             WordprocessingMLPackage word = WordprocessingMLPackage.load(Files.newInputStream(templatePath));
+            
+            // Reparacion de StylesPart: Si el documento no tiene estilos definidos 
+            // (tipico en documentos generados programaticamente), VariablePrepare falla.
+            if (word.getMainDocumentPart().getStyleDefinitionsPart() == null) {
+                org.docx4j.openpackaging.parts.WordprocessingML.StyleDefinitionsPart stylesPart = 
+                    new org.docx4j.openpackaging.parts.WordprocessingML.StyleDefinitionsPart();
+                stylesPart.setJaxbElement(new org.docx4j.wml.Styles());
+                word.getMainDocumentPart().addTargetPart(stylesPart);
+            }
+
             VariablePrepare.prepare(word);
 
             duplicateStudentRows(word, fields, signatures);
