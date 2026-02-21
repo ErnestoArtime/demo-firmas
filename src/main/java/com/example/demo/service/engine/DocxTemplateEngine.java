@@ -204,9 +204,14 @@ public class DocxTemplateEngine implements TemplateEngine {
                 continue;
             }
 
+            // Usamos una logica mas robusta para reemplazar los indices
+            // Cambiamos ALUMNO_1_ por ALUMNO_N_ y FIRMA_1 por FIRMA_N
             String updated = value.replace("ALUMNO_1_", "ALUMNO_" + studentIndex + "_")
                     .replace("FIRMA_1", "FIRMA_" + studentIndex)
-                    .replace("FIRMA1", "FIRMA" + studentIndex);
+                    .replace("FIRMA1", "FIRMA" + studentIndex)
+                    .replace("FIRMA_ 1", "FIRMA_" + studentIndex)
+                    .replace("FIRMA 1", "FIRMA" + studentIndex);
+            
             text.setValue(updated);
         }
     }

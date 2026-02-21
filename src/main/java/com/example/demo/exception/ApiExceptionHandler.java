@@ -51,7 +51,9 @@ public class ApiExceptionHandler {
             Exception ex,
             HttpServletRequest request) {
         log.error("Error procesando {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", request);
+        // Devolvemos el mensaje real de la excepcion para poder depurar
+        String message = ex.getMessage() != null ? ex.getMessage() : "Error interno desconocido";
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, message, request);
     }
 
     private ResponseEntity<Map<String, Object>> build(
