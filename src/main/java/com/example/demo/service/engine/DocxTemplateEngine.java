@@ -57,12 +57,24 @@ public class DocxTemplateEngine implements TemplateEngine {
             duplicateStudentRows(word, fields, signatures);
             replaceHashFieldTokens(word, fields);
             replaceSignatures(word, signatures);
-            word.getMainDocumentPart().variableReplace(fields);
+
+            // Proteccion contra nulos y caracteres especiales en variableReplace
+            Map<String, String> safeFields = new java.util.HashMap<>();
+            fields.forEach((k, v) -> {
+                if (v != null) {
+                    // VariableReplace de docx4j no maneja bien los saltos de linea \n
+                    // Los cambiamos por espacios para evitar errores 500
+                    safeFields.put(k, v.replace("\n", " ").replace("\r", ""));
+                }
+            });
+
+            word.getMainDocumentPart().variableReplace(safeFields);
 
             word.save(out);
             return new GeneratedFile(TemplateType.DOCX, out.toByteArray());
         } catch (Exception ex) {
-            throw new IllegalStateException("Error generando DOCX desde plantilla", ex);
+            ex.printStackTrace();
+            throw new IllegalStateException("Error generando DOCX: " + ex.getMessage(), ex);
         }
     }
 
@@ -111,19 +123,34 @@ public class DocxTemplateEngine implements TemplateEngine {
                 continue;
             }
 
-            if (!(XmlUtils.unwrap(row.getParent()) instanceof org.docx4j.wml.ContentAccessor parent)) {
+            // Buscamos el padre y el indice real (soportando JAXBElement)
+            Object parentRaw = row.getParent();
+            if (parentRaw == null) continue;
+
+            Object parentUnwrapped = XmlUtils.unwrap(parentRaw);
+            if (!(parentUnwrapped instanceof ContentAccessor accessor)) {
                 continue;
             }
-            List<Object> parentContent = parent.getContent();
-            int rowIndex = parentContent.indexOf(row);
+
+            List<Object> content = accessor.getContent();
+            int rowIndex = -1;
+            for (int i = 0; i < content.size(); i++) {
+                if (XmlUtils.unwrap(content.get(i)) == row) {
+                    rowIndex = i;
+                    break;
+                }
+            }
+
             if (rowIndex < 0) {
                 continue;
             }
 
             for (int studentIndex = 2; studentIndex <= maxStudentIndex; studentIndex++) {
-                Tr clonedRow = (Tr) XmlUtils.deepCopy(row);
+                Object originalObj = content.get(rowIndex);
+                Object clonedObj = XmlUtils.deepCopy(originalObj);
+                Tr clonedRow = (Tr) XmlUtils.unwrap(clonedObj);
                 replaceStudentIndexTokens(clonedRow, studentIndex);
-                parentContent.add(rowIndex + (studentIndex - 1), clonedRow);
+                content.add(rowIndex + (studentIndex - 1), clonedObj);
             }
         }
     }

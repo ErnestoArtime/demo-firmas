@@ -266,7 +266,7 @@ public class DocumentGenerationService {
         return students.stream()
                 .map(student -> findText(student, keys))
                 .filter(value -> value != null && !value.isBlank())
-                .collect(Collectors.joining("\n"));
+                .collect(Collectors.joining(", "));
     }
 
     private String findText(JsonNode node, String... keys) {
