@@ -70,19 +70,30 @@ public class TemplateRequirementsService {
                     continue;
                 }
                 String xml = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
-                Matcher matcher = DOCX_PLACEHOLDER_PATTERN.matcher(xml);
-                while (matcher.find()) {
-                    placeholders.add(matcher.group(1));
-                }
-                Matcher hashMatcher = DOCX_HASH_PLACEHOLDER_PATTERN.matcher(xml);
-                while (hashMatcher.find()) {
-                    placeholders.add(hashMatcher.group(1));
-                }
+
+                // 1. Direct Regex match (standard case)
+                matchPlaceholderRegexes(xml, placeholders);
+
+                // 2. Fragmented match (Word splits placeholders between XML tags)
+                // We strip all XML tags and try again. This catches "${" + "NAME" + "}" across <w:r>
+                String textContent = xml.replaceAll("<[^>]+>", ""); 
+                matchPlaceholderRegexes(textContent, placeholders);
             }
             return placeholders;
         } catch (IOException ex) {
             String detail = ex.getMessage() == null ? "" : " Detalle: " + ex.getMessage();
             throw new BadRequestException("No se pudo analizar la plantilla DOCX." + detail);
+        }
+    }
+
+    private void matchPlaceholderRegexes(String source, Set<String> target) {
+        Matcher matcher = DOCX_PLACEHOLDER_PATTERN.matcher(source);
+        while (matcher.find()) {
+            target.add(matcher.group(1));
+        }
+        Matcher hashMatcher = DOCX_HASH_PLACEHOLDER_PATTERN.matcher(source);
+        while (hashMatcher.find()) {
+            target.add(hashMatcher.group(1));
         }
     }
 
@@ -109,6 +120,7 @@ public class TemplateRequirementsService {
         return normalized.equals("FIRMA")
                 || normalized.startsWith("FIRMA_")
                 || normalized.startsWith("SIGNATURE_")
-                || normalized.startsWith("SIG_");
+                || normalized.startsWith("SIG_")
+                || normalized.matches("^(FIRMA|SIGNATURE|SIG)\\d+$");
     }
 }
