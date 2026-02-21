@@ -85,6 +85,7 @@ export class App implements OnInit {
   savedSignatures: SavedSignature[] = [];
   newSignatureName = '';
   newSignatureFile: File | null = null;
+  forceJson = false;
   selectedLibrarySignatureByField: Record<string, string> = {};
   dataJson = JSON.stringify(
     {
@@ -249,7 +250,8 @@ export class App implements OnInit {
           dataJson: this.dataJson,
           requiredFieldKeys: this.selectedRequiredFieldKeys(),
           requiredSignatureKeys: this.selectedRequiredSignatureKeys(),
-          outputType: this.outputType
+          outputType: this.outputType,
+          forceJson: this.forceJson
         })
       );
       this.pushToast(`Documento generado: ${this.generated.documentId}`, 'success');

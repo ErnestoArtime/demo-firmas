@@ -117,9 +117,17 @@ public class DocumentGenerationService {
             ParsedDataJson parsedDataJson,
             TemplateMappingMetadata mapping) {
         Map<String, String> fields = new LinkedHashMap<>();
-        fields.putAll(parsedDataJson.fields());
-        applyMappedValues(mapping.fieldMappings(), parsedDataJson.fields(), fields);
-        fields.putAll(request.fieldsOrEmpty());
+        
+        if (request.isForceJson()) {
+            fields.putAll(request.fieldsOrEmpty());
+            fields.putAll(parsedDataJson.fields());
+            applyMappedValues(mapping.fieldMappings(), parsedDataJson.fields(), fields);
+        } else {
+            fields.putAll(parsedDataJson.fields());
+            applyMappedValues(mapping.fieldMappings(), parsedDataJson.fields(), fields);
+            fields.putAll(request.fieldsOrEmpty());
+        }
+        
         return fields;
     }
 
@@ -128,9 +136,17 @@ public class DocumentGenerationService {
             ParsedDataJson parsedDataJson,
             TemplateMappingMetadata mapping) {
         Map<String, String> signatures = new LinkedHashMap<>();
-        signatures.putAll(parsedDataJson.signatures());
-        applyMappedValues(mapping.signatureMappings(), parsedDataJson.signatures(), signatures);
-        signatures.putAll(request.signaturesOrEmpty());
+        
+        if (request.isForceJson()) {
+            signatures.putAll(request.signaturesOrEmpty());
+            signatures.putAll(parsedDataJson.signatures());
+            applyMappedValues(mapping.signatureMappings(), parsedDataJson.signatures(), signatures);
+        } else {
+            signatures.putAll(parsedDataJson.signatures());
+            applyMappedValues(mapping.signatureMappings(), parsedDataJson.signatures(), signatures);
+            signatures.putAll(request.signaturesOrEmpty());
+        }
+        
         return signatures;
     }
 

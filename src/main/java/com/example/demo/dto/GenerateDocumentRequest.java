@@ -16,6 +16,7 @@ public class GenerateDocumentRequest {
     private Set<String> requiredFieldKeys;
     private Set<String> requiredSignatureKeys;
     private String outputType;
+    private boolean forceJson;
 
     public String getTemplateId() {
         return templateId;
@@ -91,5 +92,13 @@ public class GenerateDocumentRequest {
 
     public void setOutputType(String outputType) {
         this.outputType = outputType;
+    }
+
+    public boolean isForceJson() {
+        return forceJson;
+    }
+
+    public void setForceJson(boolean forceJson) {
+        this.forceJson = forceJson;
     }
 }

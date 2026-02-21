@@ -39,9 +39,9 @@ public class DocxTemplateEngine implements TemplateEngine {
     private static final Pattern TOKEN_PATTERN =
             Pattern.compile("(\\$\\{([A-Za-z0-9_]+)})|\\b([A-Za-z][A-Za-z0-9_]*)#");
     private static final Pattern STUDENT_ROW_DOCX_PATTERN =
-            Pattern.compile("\\$\\{ALUMNO_1_[A-Za-z0-9_]+}|\\$\\{FIRMA_1}|\\bALUMNO_1_[A-Za-z0-9_]+#|\\bFIRMA_1#");
+            Pattern.compile("\\$\\{ALUMNO_1_[A-Za-z0-9_]+}|\\$\\{FIRMA_?1}|\\bALUMNO_1_[A-Za-z0-9_]+#|\\bFIRMA_?1#");
     private static final Pattern STUDENT_INDEXED_TOKEN_PATTERN =
-            Pattern.compile("ALUMNO_(\\d+)_|FIRMA_(\\d+)");
+            Pattern.compile("ALUMNO_(\\d+)_|FIRMA_?(\\d+)");
 
     @Override
     public boolean supports(TemplateType type) {
@@ -177,8 +177,9 @@ public class DocxTemplateEngine implements TemplateEngine {
                 continue;
             }
 
-            String updated = value.replaceAll("ALUMNO_1_", "ALUMNO_" + studentIndex + "_")
-                    .replaceAll("FIRMA_1", "FIRMA_" + studentIndex);
+            String updated = value.replace("ALUMNO_1_", "ALUMNO_" + studentIndex + "_")
+                    .replace("FIRMA_1", "FIRMA_" + studentIndex)
+                    .replace("FIRMA1", "FIRMA" + studentIndex);
             text.setValue(updated);
         }
     }

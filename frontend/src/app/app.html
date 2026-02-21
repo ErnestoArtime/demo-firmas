@@ -212,6 +212,16 @@
       </div>
     </div>
 
+    <div class="form-group" style="padding: 10px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 4px; margin-bottom: 20px;">
+      <label style="display: flex; align-items: center; cursor: pointer; gap: 8px; font-weight: bold;">
+        <input type="checkbox" [(ngModel)]="forceJson" style="width: auto; margin: 0;" />
+        Priorizar JSON (Sobrescribe valores manuales con los del JSON/Mapping)
+      </label>
+      <p style="margin: 5px 0 0 25px; font-size: 0.85em; color: #555;">
+        Si está marcado, los campos que coincidan en el JSON o mediante mapeo tendrán prioridad sobre lo que escribas arriba.
+      </p>
+    </div>
+
     <button type="button" (click)="generateDocument()" [disabled]="!canGenerateDocument()">
       {{ isBusy('generateDocument') ? 'Generando...' : 'Generar documento' }}
     </button>
