@@ -1,0 +1,15 @@
+{
+  "scope": "frontend/src/app/home",
+  "target": "operational document-generation workspace",
+  "existing_hallmark_stamp": false,
+  "routes_reviewed": ["/", "/drafts", "/drafts/new", "/drafts/:id", "/firmar/:token"],
+  "logic_changes": false,
+  "planned_files": [
+    "design.md",
+    "frontend/src/tokens.css",
+    "frontend/src/styles.css",
+    "frontend/src/app/home/home.component.html",
+    "frontend/src/app/home/home.component.css"
+  ],
+  "delete_files": []
+}

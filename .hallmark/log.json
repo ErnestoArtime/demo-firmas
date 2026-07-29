@@ -1,0 +1,10 @@
+[
+  {
+    "date": "2026-07-29",
+    "scope": "home workspace",
+    "macrostructure": "Workbench",
+    "theme": "custom paper-and-ink",
+    "changes": ["token system", "visual hierarchy", "responsive interaction states"],
+    "logicChanged": false
+  }
+]

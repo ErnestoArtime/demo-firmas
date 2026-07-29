@@ -1,8 +1,24 @@
 <main class="container">
-  <h1>Gestor de Plantillas y Firmas</h1>
-  <p class="subtitle">Backend activo: {{ apiBaseUrl }}</p>
+  <header class="page-masthead">
+    <p class="kicker">Demo Firmas · entorno de pruebas</p>
+    <div class="masthead-copy">
+      <h1>Preparar, completar y firmar.</h1>
+      <p class="subtitle">Una mesa de trabajo para convertir plantillas en documentos listos para entregar.</p>
+    </div>
+    <div class="service-status" aria-label="Entorno de servicio">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>API: {{ apiBaseUrl || 'misma dirección' }}</span>
+    </div>
+  </header>
 
-  <section class="card">
+  <nav class="workflow-nav" aria-label="Etapas de trabajo">
+    <a href="#conversion">Preparar</a>
+    <a href="#plantillas">Plantillas</a>
+    <a href="#generacion">Generar</a>
+    <a href="#lote">Lote</a>
+  </nav>
+
+  <section class="card card--stage" id="conversion">
     <h2>1) Convertir plantilla (paso separado)</h2>
     <p class="hint">Convierte RTF/DOC y descarga el resultado para revisarlo o poner marcas antes de subirlo.</p>
     <div class="inline-controls">
@@ -18,7 +34,7 @@
     </button>
   </section>
 
-  <section class="card">
+  <section class="card card--stage">
     <h2>2) Subir plantilla</h2>
     <p class="hint">Sube solo DOCX/PDF. Este flujo no convierte archivos.</p>
     <input type="file" accept=".docx,.pdf" (change)="onUploadFileSelected($event)" />
@@ -27,7 +43,7 @@
     </button>
   </section>
 
-  <section class="card">
+  <section class="card card--stage" id="plantillas">
     <h2>3) Plantillas disponibles</h2>
     <button type="button" (click)="listTemplates()" [disabled]="isBusy('listTemplates')">
       {{ isBusy('listTemplates') ? 'Recargando...' : 'Recargar listado' }}
@@ -49,7 +65,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card card--stage">
     <h2>4) Requisitos de plantilla</h2>
     <label for="templateId">Template ID</label>
     <input
@@ -78,7 +94,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card card--stage" id="generacion">
     <h2>5) Generar documento</h2>
 
     <div *ngIf="requirements">
@@ -261,7 +277,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card card--stage" id="lote">
     <h2>6) Generacion en lote (variante API)</h2>
     <p class="hint">
       Envia varias solicitudes de generacion en una sola llamada. Cada item reporta exito o error sin cortar el lote.

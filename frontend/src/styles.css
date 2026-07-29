@@ -1,1 +1,42 @@
-/* You can add global styles to this file, and also import other style files */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+@import './tokens.css';
+
+/* Hallmark · macrostructure: Workbench · theme: custom paper-and-ink · tone: precise editorial workspace · palette: warm paper, navy ink, coral advance · nav: N6 · footer: none · contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · mobile: pass (34, 49, 50–57) */
+
+html {
+  background: var(--color-paper);
+}
+
+body {
+  min-width: 20rem;
+  margin: 0;
+  color: var(--color-ink);
+  background:
+    linear-gradient(90deg, var(--color-paper-muted) 1px, transparent 1px) 0 0 / 3.5rem 3.5rem,
+    linear-gradient(var(--color-paper-muted) 1px, transparent 1px) 0 0 / 3.5rem 3.5rem,
+    var(--color-paper);
+  font-family: var(--font-body);
+  overflow-x: clip;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
