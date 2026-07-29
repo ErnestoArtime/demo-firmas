@@ -67,7 +67,7 @@ public class FileStorageService {
         TemplateType type = TemplateType.fromFilename(safeFilename);
 
         String id = UUID.randomUUID().toString();
-        Path targetFile = templatesDir.resolve(id + "." + type.extension());
+        Path targetFile = templateFilePath(id, type);
         try {
             Files.write(targetFile, content);
         } catch (IOException ex) {
@@ -78,15 +78,16 @@ public class FileStorageService {
                 id,
                 safeFilename,
                 type,
-                targetFile.toString(),
+                targetFile.getFileName().toString(),
                 Instant.now());
         writeJson(templatesDir.resolve(id + ".json"), metadata);
-        return metadata;
+        return resolveTemplateMetadata(metadata);
     }
 
     public TemplateMetadata loadTemplate(String id) {
-        return readJson(templatesDir.resolve(id + ".json"), TemplateMetadata.class,
+        TemplateMetadata metadata = readJson(templatesDir.resolve(id + ".json"), TemplateMetadata.class,
                 "No existe la plantilla con id: " + id);
+        return resolveTemplateMetadata(metadata);
     }
 
     public List<TemplateMetadata> listTemplates() {
@@ -94,6 +95,7 @@ public class FileStorageService {
             return paths
                     .filter(path -> path.getFileName().toString().endsWith(".json"))
                     .map(path -> readJson(path, TemplateMetadata.class, "Metadata de plantilla no encontrado"))
+                    .map(this::resolveTemplateMetadata)
                     .sorted(Comparator.comparing(TemplateMetadata::createdAt).reversed())
                     .toList();
         } catch (IOException ex) {
@@ -160,6 +162,38 @@ public class FileStorageService {
             throw new BadRequestException("Nombre de archivo invalido");
         }
         return onlyName;
+    }
+
+    private TemplateMetadata resolveTemplateMetadata(TemplateMetadata metadata) {
+        Path templateFile = templateFilePath(metadata.id(), metadata.type());
+        if (!Files.isRegularFile(templateFile)) {
+            throw new NotFoundException("No existe el archivo de la plantilla con id: " + metadata.id());
+        }
+
+        String portableFileName = templateFile.getFileName().toString();
+        if (!portableFileName.equals(metadata.filePath())) {
+            writeJson(templatesDir.resolve(metadata.id() + ".json"), new TemplateMetadata(
+                    metadata.id(),
+                    metadata.originalFilename(),
+                    metadata.type(),
+                    portableFileName,
+                    metadata.createdAt()));
+        }
+
+        return new TemplateMetadata(
+                metadata.id(),
+                metadata.originalFilename(),
+                metadata.type(),
+                templateFile.toString(),
+                metadata.createdAt());
+    }
+
+    private Path templateFilePath(String id, TemplateType type) {
+        Path templateFile = templatesDir.resolve(id + "." + type.extension()).normalize();
+        if (!templateFile.startsWith(templatesDir)) {
+            throw new BadRequestException("Identificador de plantilla invalido");
+        }
+        return templateFile;
     }
 
     private void writeJson(Path path, Object value) {
