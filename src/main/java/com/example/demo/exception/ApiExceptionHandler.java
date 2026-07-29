@@ -3,14 +3,14 @@ package com.example.demo.exception;
 import java.time.Instant;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -42,7 +42,7 @@ public class ApiExceptionHandler {
                 .stream()
                 .findFirst()
                 .map(FieldError::getDefaultMessage)
-                .orElse("Error de validación");
+                .orElse("Error de validacion");
         return build(HttpStatus.BAD_REQUEST, message, request);
     }
 
@@ -51,9 +51,7 @@ public class ApiExceptionHandler {
             Exception ex,
             HttpServletRequest request) {
         log.error("Error procesando {} {}", request.getMethod(), request.getRequestURI(), ex);
-        // Devolvemos el mensaje real de la excepcion para poder depurar
-        String message = ex.getMessage() != null ? ex.getMessage() : "Error interno desconocido";
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, message, request);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", request);
     }
 
     private ResponseEntity<Map<String, Object>> build(

@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.dto.TemplateUploadResponse;
+import com.example.demo.dto.TemplateAssistResponse;
 import com.example.demo.dto.TemplateRequirementsResponse;
 import com.example.demo.dto.CatalogFieldResponse;
 import com.example.demo.dto.TemplateMappingRequest;
@@ -32,6 +33,7 @@ import com.example.demo.service.SampleTemplateService;
 import com.example.demo.service.TemplateMappingService;
 import com.example.demo.service.TemplateConversionService;
 import com.example.demo.service.TemplateRequirementsService;
+import com.example.demo.service.TemplateAssistService;
 
 @RestController
 @RequestMapping("/api/templates")
@@ -42,18 +44,21 @@ public class TemplateController {
     private final TemplateRequirementsService templateRequirementsService;
     private final TemplateConversionService templateConversionService;
     private final TemplateMappingService templateMappingService;
+    private final TemplateAssistService templateAssistService;
 
     public TemplateController(
             FileStorageService fileStorageService,
             SampleTemplateService sampleTemplateService,
             TemplateRequirementsService templateRequirementsService,
             TemplateConversionService templateConversionService,
-            TemplateMappingService templateMappingService) {
+            TemplateMappingService templateMappingService,
+            TemplateAssistService templateAssistService) {
         this.fileStorageService = fileStorageService;
         this.sampleTemplateService = sampleTemplateService;
         this.templateRequirementsService = templateRequirementsService;
         this.templateConversionService = templateConversionService;
         this.templateMappingService = templateMappingService;
+        this.templateAssistService = templateAssistService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -126,6 +131,12 @@ public class TemplateController {
                 templateId,
                 templateRequirementsService.extractRequiredFields(template),
                 templateRequirementsService.extractRequiredSignatures(template));
+    }
+
+    @GetMapping("/{templateId}/assist")
+    public TemplateAssistResponse getAssist(@PathVariable String templateId) {
+        TemplateMetadata template = fileStorageService.loadTemplate(templateId);
+        return templateAssistService.buildTemplateAssist(templateId, template);
     }
 
     @GetMapping("/{templateId}/mapping")

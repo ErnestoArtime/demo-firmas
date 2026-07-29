@@ -27,13 +27,19 @@ public class FileStorageService {
     private final Path templatesDir;
     private final Path outputDir;
     private final ObjectMapper objectMapper;
+    private final long maxTemplateBytes;
+    private final long maxGeneratedBytes;
 
     public FileStorageService(
             @Value("${app.storage.templates-dir:storage/templates}") String templatesDir,
             @Value("${app.storage.output-dir:storage/output}") String outputDir,
+            @Value("${app.storage.max-template-bytes:10485760}") long maxTemplateBytes,
+            @Value("${app.storage.max-generated-bytes:20971520}") long maxGeneratedBytes,
             ObjectMapper objectMapper) {
         this.templatesDir = Path.of(templatesDir).toAbsolutePath().normalize();
         this.outputDir = Path.of(outputDir).toAbsolutePath().normalize();
+        this.maxTemplateBytes = maxTemplateBytes;
+        this.maxGeneratedBytes = maxGeneratedBytes;
         this.objectMapper = objectMapper;
         createDirectories();
     }
@@ -53,6 +59,10 @@ public class FileStorageService {
         if (content == null || content.length == 0) {
             throw new BadRequestException("Debe enviar un archivo con contenido");
         }
+        if (content.length > maxTemplateBytes) {
+            throw new BadRequestException("La plantilla supera el tamano maximo permitido");
+        }
+
         String safeFilename = sanitizeFilename(originalFilename);
         TemplateType type = TemplateType.fromFilename(safeFilename);
 
@@ -95,6 +105,13 @@ public class FileStorageService {
             String templateId,
             TemplateType type,
             byte[] content) {
+        if (content == null || content.length == 0) {
+            throw new BadRequestException("No se genero contenido para el documento");
+        }
+        if (content.length > maxGeneratedBytes) {
+            throw new BadRequestException("El documento generado supera el tamano maximo permitido");
+        }
+
         String id = UUID.randomUUID().toString();
         String outputFilename = "documento_" + id + "." + type.extension();
         Path outputFile = outputDir.resolve(outputFilename);
@@ -122,8 +139,13 @@ public class FileStorageService {
     }
 
     public byte[] loadFileContent(String absolutePath) {
+        Path normalized = Path.of(absolutePath).toAbsolutePath().normalize();
+        if (!normalized.startsWith(templatesDir) && !normalized.startsWith(outputDir)) {
+            throw new BadRequestException("Ruta de archivo no permitida");
+        }
+
         try {
-            return Files.readAllBytes(Path.of(absolutePath));
+            return Files.readAllBytes(normalized);
         } catch (IOException ex) {
             throw new NotFoundException("No se pudo leer el archivo solicitado");
         }
@@ -131,9 +153,13 @@ public class FileStorageService {
 
     private String sanitizeFilename(String filename) {
         if (filename == null || filename.isBlank()) {
-            throw new BadRequestException("Nombre de archivo inválido");
+            throw new BadRequestException("Nombre de archivo invalido");
         }
-        return Path.of(filename).getFileName().toString().replaceAll("[\\r\\n]", "_");
+        String onlyName = Path.of(filename).getFileName().toString().replaceAll("[\\r\\n]", "_").trim();
+        if (onlyName.isBlank()) {
+            throw new BadRequestException("Nombre de archivo invalido");
+        }
+        return onlyName;
     }
 
     private void writeJson(Path path, Object value) {

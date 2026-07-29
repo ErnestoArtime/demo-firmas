@@ -66,9 +66,11 @@ public class TemplateRequirementsService {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String name = entry.getName().toLowerCase().replace('\\', '/');
-                
-                // Buscamos en cualquier archivo XML dentro de la carpeta word/
-                if (!name.contains("word/") || !name.endsWith(".xml")) {
+
+                // Restringido a document.xml, header*.xml y footer*.xml. Antes leia
+                // styles.xml/numbering.xml/etc. y devolvia falsos positivos al casar el
+                // regex \b[A-Za-z]+# contra fragmentos de hoja de estilos.
+                if (!isContentXmlEntry(name)) {
                     continue;
                 }
                 String xml = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
@@ -86,6 +88,16 @@ public class TemplateRequirementsService {
             String detail = ex.getMessage() == null ? "" : " Detalle: " + ex.getMessage();
             throw new BadRequestException("No se pudo analizar la plantilla DOCX." + detail);
         }
+    }
+
+    private boolean isContentXmlEntry(String lowercaseName) {
+        if (!lowercaseName.endsWith(".xml")) {
+            return false;
+        }
+        if (lowercaseName.equals("word/document.xml")) {
+            return true;
+        }
+        return lowercaseName.matches("^word/(header|footer)\\d*\\.xml$");
     }
 
     private void matchPlaceholderRegexes(String source, Set<String> target) {

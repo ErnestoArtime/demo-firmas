@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -55,10 +58,10 @@ public class TemplateMappingService {
             Set<String> requiredSignatureKeys) {
         TemplateMappingMetadata metadata = new TemplateMappingMetadata(
                 templateId,
-                fieldMappings == null ? Map.of() : fieldMappings,
-                signatureMappings == null ? Map.of() : signatureMappings,
-                requiredFieldKeys == null ? Set.of() : requiredFieldKeys,
-                requiredSignatureKeys == null ? Set.of() : requiredSignatureKeys,
+                normalizeMap(fieldMappings),
+                normalizeMap(signatureMappings),
+                normalizeSet(requiredFieldKeys),
+                normalizeSet(requiredSignatureKeys),
                 Instant.now());
         try {
             objectMapper.writeValue(mappingPath(templateId).toFile(), metadata);
@@ -71,18 +74,53 @@ public class TemplateMappingService {
     public List<CatalogFieldResponse> catalogFields() {
         return List.of(
                 new CatalogFieldResponse("CURSO_NOMBRE", "Nombre del curso", "field"),
-                new CatalogFieldResponse("CURSO_FECHA", "Fecha del curso/sesion", "field"),
+                new CatalogFieldResponse("CURSO_FECHA", "Fecha del curso o sesion", "field"),
                 new CatalogFieldResponse("CURSO_TUTOR", "Tutor del curso", "field"),
-                new CatalogFieldResponse("BD_NOMBRES", "Listado (lineas) de nombres de alumnos", "field"),
-                new CatalogFieldResponse("BD_APELLIDOS", "Listado (lineas) de apellidos de alumnos", "field"),
-                new CatalogFieldResponse("BD_NIFS", "Listado (lineas) de NIFs de alumnos", "field"),
+                new CatalogFieldResponse("EMPRESA_NOMBRE", "Nombre de empresa o cliente", "field"),
+                new CatalogFieldResponse("EMPRESA_CIF", "CIF/NIF de empresa", "field"),
+                new CatalogFieldResponse("BD_NOMBRES", "Listado de nombres de alumnos", "field"),
+                new CatalogFieldResponse("BD_APELLIDOS", "Listado de apellidos de alumnos", "field"),
+                new CatalogFieldResponse("BD_NIFS", "Listado de NIFs de alumnos", "field"),
                 new CatalogFieldResponse("ALUMNO_1_NOMBRE", "Nombre del alumno 1 (fila base)", "field"),
                 new CatalogFieldResponse("ALUMNO_1_APELLIDOS", "Apellidos del alumno 1 (fila base)", "field"),
                 new CatalogFieldResponse("ALUMNO_1_NIF", "NIF del alumno 1 (fila base)", "field"),
-                new CatalogFieldResponse("FIRMA_1", "Firma del alumno 1 (fila base)", "signature"));
+                new CatalogFieldResponse("FIRMA_1", "Firma del alumno 1 (fila base)", "signature"),
+                new CatalogFieldResponse("FIRMA_DEFAULT", "Firma por defecto para todos", "signature"));
     }
 
     private Path mappingPath(String templateId) {
         return templatesDir.resolve(templateId + ".mapping.json");
+    }
+
+    private Map<String, String> normalizeMap(Map<String, String> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : source.entrySet()) {
+            String key = entry.getKey() == null ? "" : entry.getKey().trim();
+            String value = entry.getValue() == null ? "" : entry.getValue().trim().toUpperCase(Locale.ROOT);
+            if (key.isBlank() || value.isBlank()) {
+                continue;
+            }
+            normalized.put(key, value);
+        }
+        return normalized;
+    }
+
+    private Set<String> normalizeSet(Set<String> source) {
+        if (source == null || source.isEmpty()) {
+            return Set.of();
+        }
+
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String value : source) {
+            String current = value == null ? "" : value.trim();
+            if (!current.isBlank()) {
+                normalized.add(current);
+            }
+        }
+        return normalized;
     }
 }
